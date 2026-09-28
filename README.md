@@ -178,10 +178,11 @@ proxy was added mid-campaign): those consumed **151.6M tokens**, ≈0.91M per ru
 ```powershell
 # 1. Offline: criteria, payload staging invariants, policies, token accounting.
 #    No agentdojo, no API key, no model, ~0.3 s.
-python -m pytest -q                                # 64 passed, 1 skipped
+python -m pytest -q                                # 67 passed, 1 skipped
 
 # 2. Analysis: recompute every reported number from the committed raw traces.
 python repro/claims_audit.py                       # 14 executable claims; exit != 0 on drift
+python repro/freeze_manifest.py --check            # MANIFEST.sha256 vs this tree
 python repro/chain_stats.py                        # §2's tables + the pre-registered gate
 python repro/two_lenses.py                         # the unconstrained vs source-constrained claim
 python repro/d2_verdict.py --since 2026-09-28T02:00:00Z
@@ -201,7 +202,9 @@ python scripts/apt_lab/chain.py --seeds 4 --concurrency 4 --payload full
 
 `repro/claims_audit.py` is the drift guard: each claim is pinned **per batch** and never
 pooled across a growing set, so adding batches cannot silently rewrite a published number.
-`repro/freeze_manifest.py` regenerates `MANIFEST.sha256` and the batch inventory.
+`repro/freeze_manifest.py --check` is the second guard: it fails loudly if any published
+file has changed or appeared since the manifest was written. Line endings are pinned to LF
+in `.gitattributes` so a fresh checkout is byte-identical to the manifest on every platform.
 
 ## 6. What this freeze does *not* establish
 

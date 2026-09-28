@@ -27,23 +27,75 @@ MANIFEST = REPO / "MANIFEST.sha256"
 INVENTORY = cs.ROOT / "INVENTORY.md"
 
 
-def manifest() -> int:
-    """Digest every committed file except the raw traces and the manifest itself."""
+#: Local-only paths, mirroring `.gitignore`. The manifest describes the *published*
+#: artifact, so a path that is never committed must never be hashed into it: hashing
+#: `secrets/minimax_api_key.txt` would publish a verifier for a live credential, and
+#: hashing `__pycache__` would make the manifest depend on which tests were last run.
+#: (The first version walked the whole filesystem and listed the key file. It was caught
+#: by the check mode on the very next run, which is the point of having one.)
+SKIP_PREFIXES = ("runs/", "secrets/", ".git/", ".venv/", ".venv-run/", ".pytest_cache/")
+SKIP_PARTS = {"__pycache__"}
+SKIP_SUFFIXES = (".pyc",)
+SKIP_NAMES = {"MANIFEST.sha256"}
+
+
+def digested() -> list[str]:
+    """Digest every published file except the raw traces and the manifest itself."""
 
     lines = []
     for path in sorted(REPO.rglob("*")):
         if not path.is_file():
             continue
         rel = path.relative_to(REPO).as_posix()
-        if rel.startswith("runs/") or rel == "MANIFEST.sha256":
+        if rel in SKIP_NAMES or rel.startswith(SKIP_PREFIXES) or rel.endswith(SKIP_SUFFIXES):
             continue
-        if any(part in {".git", "__pycache__", ".pytest_cache"} for part in path.parts):
+        if any(part in SKIP_PARTS or part in SKIP_NAMES for part in path.parts):
             continue
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         lines.append(f"{digest}  {rel}")
+    return lines
+
+
+def manifest() -> int:
+    lines = digested()
     MANIFEST.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"MANIFEST.sha256: {len(lines)} files")
     return len(lines)
+
+
+def check() -> int:
+    """Verify the committed manifest against this working tree.
+
+    Without this, a manifest is decoration: the first version of this file was generated
+    once, then nine files were edited during the freeze audit, and nothing said so -- the
+    drift only surfaced because a clone was compared against it by hand. A stale manifest
+    is worse than no manifest, because it *looks* like verification.
+    """
+
+    if not MANIFEST.exists():
+        print("MANIFEST.sha256 is missing; run without --check to create it")
+        return 1
+    expected = {}
+    for line in MANIFEST.read_text(encoding="utf-8").splitlines():
+        digest, _, rel = line.partition("  ")
+        if rel:
+            expected[rel] = digest
+    actual = dict(
+        (line.split("  ", 1)[1], line.split("  ", 1)[0]) for line in digested()
+    )
+    missing = sorted(set(expected) - set(actual))
+    added = sorted(set(actual) - set(expected))
+    changed = sorted(rel for rel in set(expected) & set(actual)
+                     if expected[rel] != actual[rel])
+    for rel in changed:
+        print(f"CHANGED  {rel}")
+    for rel in missing:
+        print(f"MISSING  {rel}")
+    for rel in added:
+        print(f"UNLISTED {rel}")
+    print(f"manifest check: {len(actual)} files, "
+          f"{len(changed)} changed, {len(missing)} missing, {len(added)} unlisted")
+    return 1 if (changed or missing or added) else 0
 
 
 def inventory() -> int:
@@ -103,6 +155,14 @@ def inventory() -> int:
 
 
 def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true",
+                        help="verify the committed manifest instead of regenerating it")
+    args = parser.parse_args()
+    if args.check:
+        return check()
     manifest()
     inventory()
     return 0
