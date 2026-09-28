@@ -1,0 +1,12 @@
+# Line endings are part of this artifact's integrity, not a style preference.
+#
+# `core.autocrlf=true` is set machine-wide on the machine this was built on, which means a
+# fresh checkout would rewrite every LF to CRLF -- and then `MANIFEST.sha256` (computed over
+# LF bytes) would fail for every file, and the raw traces would no longer be the bytes the
+# analysis scripts were run against. The rules below make a checkout byte-identical on every
+# platform, which is what "reproducible" has to mean for an evidence repository.
+* text=auto eol=lf
+
+# Evidence and its digest are opaque bytes: never normalise, never convert.
+runs/** -text
+MANIFEST.sha256 -text
