@@ -192,6 +192,13 @@ class FamilySpec(BaseModel):
     objective: str
     # The APT stages this family claims. `stage_coverage` is completed / len(stages).
     stages: tuple[str, ...] = Field(default_factory=tuple)
+    # Additional (seat, carrier name) pairs that receive the **same injected text**.
+    # Empty for every family and arm that existed before E-1, so nothing published changes
+    # meaning. The extra carriers are attacker-created, exactly like the primary one, so
+    # `canonical_refs` includes them and the forced cleanup removes them at the first
+    # boundary -- if it did not, a redundant copy would look like a surviving residue and
+    # the arm would score itself as a success for the wrong reason.
+    extra_seats: tuple[tuple[Plant, str], ...] = Field(default_factory=tuple)
     notes: str = ""
 
 
@@ -302,13 +309,12 @@ def spec_for(family: Family | str) -> FamilySpec:
     return SPECS[Family(family)]
 
 
-def payload_carriers(spec: FamilySpec) -> tuple[str, ...]:
-    """Canonical refs the payload is planted in. These are the non-residue carriers."""
-
-    if spec.plant is Plant.INBOX:
-        return ("inbox:received:payload",)
-    if spec.plant is Plant.DRIVE:
-        return (f"drive:{spec.carrier_name}",)
-    if spec.plant is Plant.MEMORY:
-        return (f"memory:{spec.carrier_name}",)
-    return (f"rag:{spec.carrier_name}",)
+# `payload_carriers` used to live here: a helper returning "the refs the payload is planted
+# in". It was wrong twice and had no consumers, so it is gone rather than fixed a third
+# time. First it claimed the inbox ref was `inbox:received:payload` when the planted email's
+# ref is `inbox:received:payload-1`; then `drive:<filename>` when a drive carrier's ref is
+# `drive:<numeric id>` (that mismatch is defect 2's shape -- drive refs keyed by filename
+# let a residue survive a cleanup that reported full coverage). Both times the lesson was
+# the same: a ref is assigned by the thing that stores the carrier, so a helper that
+# *predicts* refs from a spec will drift. Callers that want to know what is planted should
+# ask the environment (`runner.carrying_refs`), which reads bytes and the real refs.

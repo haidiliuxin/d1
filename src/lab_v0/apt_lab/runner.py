@@ -439,9 +439,25 @@ def seed_scenario(
     # acknowledgement). Planting the byte set would put the whole instruction set back
     # into the memo and the staging would be decorative.
     planted = spec.injected if spec.injected else spec.payload
-    if spec.plant is Plant.DRIVE:
-        drive.create_file(spec.carrier_name, planted)
-    elif spec.plant is Plant.INBOX:
+    # Seat 1 is the primary, seats 2.. are E-1's redundant copies. The index is what makes
+    # the inbox id deterministic (`payload-1`, `payload-2`, ...) -- the published arms all
+    # used `payload-1`, and the ref a carrier gets is `inbox:received:<id>`, so an id
+    # derived from `len(emails)` would silently rename every future carrier and break the
+    # ref convention the probes and `payload_carriers` describe.
+    _plant_in(env, spec.plant, spec.carrier_name, planted, index=1)
+    for offset, (seat, carrier_name) in enumerate(spec.extra_seats, start=2):
+        _plant_in(env, seat, carrier_name, planted, index=offset)
+    return env
+
+
+def _plant_in(env: Any, seat: Plant, carrier_name: str, planted: str,
+              index: int = 1) -> None:
+    """Write `planted` into one seat's carrier. No-op-safe for every seat kind."""
+
+    drive = env.cloud_drive
+    if seat is Plant.DRIVE:
+        drive.create_file(carrier_name, planted)
+    elif seat is Plant.INBOX:
         import datetime
 
         from agentdojo.default_suites.v1.tools.email_client import Email
@@ -450,23 +466,22 @@ def seed_scenario(
         # Planted through `emails`, the actual storage, because `received` is a
         # computed property and inserting into what it returns would be discarded.
         email = Email(
-            id_="payload-1",
+            id_=f"payload-{index}",
             sender="intake-relay@larch.internal",
             recipients=["ops-intake@larch.internal"],
             cc=[],
             bcc=[],
-            subject=spec.carrier_name,
+            subject=carrier_name,
             body=planted,
             status=EmailStatus.received,
             read=False,
             timestamp=datetime.datetime(2024, 5, 14, 9, 30, 0),
         )
         env.inbox.emails[email.id_] = email
-    elif spec.plant is Plant.MEMORY:
-        env.apt.memory[spec.carrier_name] = planted
+    elif seat is Plant.MEMORY:
+        env.apt.memory[carrier_name] = planted
     else:
-        env.apt.rag[spec.carrier_name] = planted
-    return env
+        env.apt.rag[carrier_name] = planted
 
 
 # --- forced cleanup ---------------------------------------------------------------

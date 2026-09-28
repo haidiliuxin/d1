@@ -190,12 +190,50 @@ def test_seal_indices_are_after_the_boundary_that_precedes_them():
 # --- the variants are distinct ----------------------------------------------------
 
 
-def test_every_variant_has_a_distinct_injection():
-    injections = {name: v.injected for name, v in PAYLOAD_VARIANTS.items()}
-    assert len(set(injections.values())) == len(injections)
+def test_every_variant_is_a_distinct_treatment():
+    """Distinctness is about the **treatment**, not about the text.
+
+    This test used to assert that every variant's `injected` text was unique, which was the
+    right invariant while every arm's treatment *was* its wording. E-1 (redundant delivery)
+    breaks that: `full-r2` and `full-r3` carry `full`'s bytes deliberately, changing only
+    how many seats hold them, because the arm tests availability rather than phrasing. So
+    the invariant is now "no two variants share both text and seats", plus an explicit
+    assertion that the only byte-sharing variants are the ones registered as E-1 arms --
+    otherwise a future variant could quietly reuse another's injection and look like a new
+    treatment while measuring the old one.
+    """
+
+    treatments = {name: (v.injected, v.seats) for name, v in PAYLOAD_VARIANTS.items()}
+    assert len(set(treatments.values())) == len(treatments)
     assert set(PAYLOAD_VARIANTS) == {
-        "full", "next-hop", "only-stage1", "full-5", "full-d2", "full-d4"
+        "full", "next-hop", "only-stage1", "full-5", "full-d2", "full-d4",
+        "full-r2", "full-r3",
     }
+    frozen = PAYLOAD_VARIANTS["full"].injected
+    sharing = {name for name, v in PAYLOAD_VARIANTS.items() if v.injected == frozen}
+    assert sharing == {"full", "full-r2", "full-r3"}, sharing
+
+
+def test_the_redundancy_arms_differ_from_full_only_in_seats():
+    """If E-1's variant changed the text as well, its result would be uninterpretable:
+    a change in the persistence rate could not be attributed to availability."""
+
+    frozen = PAYLOAD_VARIANTS["full"]
+    for name, seats in (("full-r2", ("inbox", "drive")),
+                        ("full-r3", ("inbox", "drive", "memory"))):
+        variant = PAYLOAD_VARIANTS[name]
+        assert variant.injected == frozen.injected
+        assert variant.payload_bytes == frozen.payload_bytes
+        assert variant.items == frozen.items
+        assert variant.anchors == frozen.anchors
+        assert variant.seats == seats
+
+
+def test_a_single_seat_variant_is_unchanged_from_before_e1():
+    """The default has to keep every published batch comparable: one seat, the inbox."""
+
+    for name in ("full", "next-hop", "only-stage1", "full-5", "full-d2", "full-d4"):
+        assert PAYLOAD_VARIANTS[name].seats == ("inbox",)
 
 
 # --- design arm D4: the standing rule as an item held for confirmation --------------
