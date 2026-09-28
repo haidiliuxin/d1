@@ -30,24 +30,29 @@ OTHER_CHANNELS = ("send_email", "append_to_file", "create_file", "a2a_send")
 
 
 def rows_of(batch: pathlib.Path, arm: str = "R-forced",
-            variant: str | None = None, policy: str | None = None) -> list[dict]:
+            variant: str | None = None, policy: str | None = None,
+            model: str | None = cs.DEFAULT_MODEL) -> list[dict]:
     """One arm's artifacts, classified **per artifact**.
 
     Globbing `R-forced-*.json` inside the batch directory is what the first version did,
     and it is wrong for an interleaved batch: `--payload full,full-d4` writes both
     payloads' runs into one directory, so the `full` control silently absorbed six
-    `full-d4` runs. `runs_of` is the per-artifact classifier (chain spec §9.25).
+    `full-d4` runs. `runs_of` is the per-artifact classifier (chain spec §9.25), and it
+    filters the model for the same reason: a second model's `full` runs are not this
+    control.
     """
 
     return [
-        j for _stem, j, _v, _p in cs.runs_of(batch, variant=variant, policy=policy)
+        j for _stem, j, _v, _p in cs.runs_of(
+            batch, variant=variant, policy=policy, model=model)
         if j.get("arm") == arm
     ]
 
 
 def profile(batch: pathlib.Path, variant: str | None = None,
-            policy: str | None = None) -> dict:
-    rs = rows_of(batch, variant=variant, policy=policy)
+            policy: str | None = None,
+            model: str | None = cs.DEFAULT_MODEL) -> dict:
+    rs = rows_of(batch, variant=variant, policy=policy, model=model)
     n = len(rs)
     out = {
         "batch": batch.name, "n": n,
@@ -95,13 +100,16 @@ def main() -> int:
         if args.since else None
     )
 
-    def find(variant: str, policy: str) -> list[pathlib.Path]:
+    def find(variant: str, policy: str,
+             model: str = cs.DEFAULT_MODEL) -> list[pathlib.Path]:
         found, undated = [], 0
         for d in sorted(cs.ROOT.glob("chain-*")):
             if not d.is_dir() or d.name in cs.VOID_BATCHES:
                 continue
             if cs.variant_of(d) != variant or cs.policy_of(d) != policy:
                 continue
+            if not cs.runs_of(d, variant=variant, policy=policy, model=model):
+                continue  # a batch of this payload but another model is not this control
             if since is not None:
                 # The batch *name*, not `st_ctime`: a fresh checkout resets every
                 # directory's creation time to the copy time, so the filter would pass

@@ -36,6 +36,7 @@ import chain_stats as cs  # noqa: E402
 DISCRIMINATORS = ("enforcement", "disable", "outbound")
 TOKEN_MARK = "VIRTUAL-TOKEN-7F3A"
 SINK_LABEL = "recon-7f3a"
+MODEL = cs.DEFAULT_MODEL
 
 
 def pool() -> list[dict]:
@@ -45,6 +46,11 @@ def pool() -> list[dict]:
     predate the final stage-3 criterion are excluded from the `full` pool for the same
     reason `chain_stats` excludes them: their stage-3 numbers were produced by a rule
     that has since been corrected in both directions.
+
+    The model is part of the selection: every rate this script prints is a
+    `MiniMax-M2.7` rate, and the cross-model arm adds runs of the same payload under a
+    different model, which must not be able to join this pool (chain spec §9.25, defect
+    17's family). `--model` on the command line widens it deliberately.
     """
 
     runs = []
@@ -53,7 +59,8 @@ def pool() -> list[dict]:
             continue
         if d.name in cs.PRE_FINAL_CRITERIA_BATCHES:
             continue
-        for _stem, j, _v, _p in cs.runs_of(d, variant="full", policy="quote-as-assessed"):
+        for _stem, j, _v, _p in cs.runs_of(
+                d, variant="full", policy="quote-as-assessed", model=MODEL):
             if j.get("arm") == "R-forced":
                 runs.append(j)
     return runs

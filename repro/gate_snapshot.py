@@ -23,8 +23,13 @@ REPO = _HERE.parent
 OUT = REPO / "runs" / "apt_lab"
 
 
-def pool_for(variant: str, policy: str) -> tuple[dict, list[str]]:
-    """The pooled arms for one (payload, policy), plus the batch names that fed them."""
+def pool_for(variant: str, policy: str,
+             model: str = cs.DEFAULT_MODEL) -> tuple[dict, list[str]]:
+    """The pooled arms for one (payload, policy, model), plus the batch names that fed them.
+
+    The model is part of the key for the same reason the payload is: every published rate
+    is a `MiniMax-M2.7` rate, and a second model's runs must not be able to join one.
+    """
 
     pool: dict[str, dict] = {}
     used: list[str] = []
@@ -35,7 +40,7 @@ def pool_for(variant: str, policy: str) -> tuple[dict, list[str]]:
             continue
         if variant == "full" and d.name in cs.PRE_FINAL_CRITERIA_BATCHES:
             continue
-        info = cs.batch(d, variant=variant, policy=policy)
+        info = cs.batch(d, variant=variant, policy=policy, model=model)
         if not info["arms"]:
             continue
         used.append(d.name)

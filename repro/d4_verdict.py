@@ -112,7 +112,9 @@ def main() -> int:
                 created = cs.batch_time(d)
                 if created is None or created < since:
                     continue
-            for _stem, j, _v, _p in cs.runs_of(d, variant=variant, policy="quote-as-assessed"):
+            for _stem, j, _v, _p in cs.runs_of(
+                    d, variant=variant, policy="quote-as-assessed",
+                    model=cs.DEFAULT_MODEL):
                 if j.get("arm") == "R-forced":
                     out.append(j)
         return out

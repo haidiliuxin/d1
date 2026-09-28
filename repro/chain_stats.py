@@ -30,6 +30,12 @@ from verify_stats import fisher, wilson  # noqa: E402
 REPO = _HERE.parent
 ROOT = REPO / "runs" / "apt_lab"
 
+#: Which model every published rate in this repository belongs to. The cross-model arm
+#: (`docs/experiments/2026-09-28-cross-model-prereg.md`) adds a second one, so a pool has
+#: to name the model it is a rate *of* -- otherwise 12 runs from another vendor land in a
+#: frozen `MiniMax-M2.7` rate without anything turning red.
+DEFAULT_MODEL = "MiniMax-M2.7"
+
 
 def flags(j: dict) -> tuple[bool, bool, bool]:
     rs = [int(x) for x in (j.get("read_secret_sessions") or [])]
@@ -303,13 +309,13 @@ def phase_b_gate(
 
 
 def batch(path: pathlib.Path, *, variant: str | None = None,
-          policy: str | None = None) -> dict:
+          policy: str | None = None, model: str | None = DEFAULT_MODEL) -> dict:
     out: dict[str, dict] = {}
     boundaries = 0
     cov_bad: list[str] = []
     disagree: list[str] = []
     leaks: dict[str, dict[str, int]] = {}
-    for stem, j, _v, _p in runs_of(path, variant=variant, policy=policy):
+    for stem, j, _v, _p in runs_of(path, variant=variant, policy=policy, model=model):
         f = pathlib.Path(stem)
         arm = j.get("arm", stem.rsplit("-", 1)[0])
         summary = flags(j)
@@ -453,6 +459,7 @@ def runs_of(
     *,
     variant: str | None = None,
     policy: str | None = None,
+    model: str | None = None,
 ) -> list[tuple[str, dict, str, str]]:
     """(stem, artifact, variant, policy) for every run, classified **per run**.
 
@@ -464,7 +471,11 @@ def runs_of(
     Phase B gate's `full` pool would have absorbed six runs of a different treatment.
 
     Old artifacts without the field default to the frozen payload and the quoting
-    policy, which is what they are by construction.
+    policy, which is what they are by construction. The same default applies to the
+    model, and for the same reason -- but the model filter is **not** optional once a
+    second model exists: every published rate is a `MiniMax-M2.7` rate, so a
+    `deepseek-chat` run reaching a pool would silently rewrite a frozen number. Callers
+    that want every model pass ``model=None`` explicitly.
     """
 
     out: list[tuple[str, dict, str, str]] = []
@@ -475,7 +486,9 @@ def runs_of(
             continue
         v = j.get("payload_variant", "full")
         p = j.get("policy", "quote-as-assessed")
-        if (variant is None or v == variant) and (policy is None or p == policy):
+        m = j.get("model", DEFAULT_MODEL)
+        if (variant is None or v == variant) and (policy is None or p == policy) \
+                and (model is None or m == model):
             out.append((f.stem, j, v, p))
     return out
 
@@ -718,9 +731,11 @@ def main() -> int:
         if not poolable:
             print(f"  [not pooled: {d.name} predates the final stage-3 criterion]")
             continue
-        for run_variant, run_policy in sorted({(v, p) for _s, _j, v, p in runs_of(d)}):
-            sub = batch(d, variant=run_variant, policy=run_policy)
-            pool = by_variant.setdefault((run_variant, run_policy), {})
+        combos = {(v, p, j.get("model", DEFAULT_MODEL))
+                  for _s, j, v, p in runs_of(d)}
+        for run_variant, run_policy, run_model in sorted(combos):
+            sub = batch(d, variant=run_variant, policy=run_policy, model=run_model)
+            pool = by_variant.setdefault((run_variant, run_policy, run_model), {})
             for arm, r in sub["arms"].items():
                 p = pool.setdefault(arm, {"s1": 0, "s2": 0, "s2t": 0, "s3": 0, "n": 0,
                                           "n_s2": 0, "s1_i": 0, "s3_i": 0,
@@ -737,7 +752,8 @@ def main() -> int:
                 for bucket in ("formed", "unformed"):
                     for i, value in enumerate(r.get(bucket, [0, 0, 0, 0])):
                         p[bucket][i] += value
-            merged = leaks_by_variant.setdefault((run_variant, run_policy), {})
+            merged = leaks_by_variant.setdefault(
+                (run_variant, run_policy, run_model), {})
             for arm, items in sub["leaks"].items():
                 for item, counts in items.items():
                     target = merged.setdefault(arm, {}).setdefault(item, {})
@@ -749,8 +765,8 @@ def main() -> int:
     print("POOLED BY PAYLOAD VARIANT (every non-void batch, identical final criteria)")
     print("=" * 78)
     for key in sorted(by_variant):
-        variant, policy = key
-        print(f"  payload={variant}  policy={policy}")
+        variant, policy, model = key
+        print(f"  payload={variant}  policy={policy}  model={model}")
         for arm, p in sorted(by_variant[key].items()):
             print(f"    {arm:<11} stage1 {rate(p['s1'], p['n']):<26} "
                   f"stage3 {rate(p['s3'], p['n']):<26}")
@@ -759,7 +775,7 @@ def main() -> int:
             if p.get("s3d_n"):
                 print(f"    {'':<11} stage3 DELIVERED {rate(p['s3d'], p['s3d_n'])}")
 
-    full = by_variant.get(("full", "quote-as-assessed"), {})
+    full = by_variant.get(("full", "quote-as-assessed", DEFAULT_MODEL), {})
     r = full.get("R-forced")
     c = full.get("C0-forced")
     if r and c:
@@ -781,8 +797,8 @@ def main() -> int:
             print(f"      necessity {label}: R {r[key]}/{m} vs C0 {c[key]}/{m}  "
                   f"p_greater={f['p_greater']:.4f}")
 
-    hop = by_variant.get(("next-hop", "quote-as-assessed"), {})
-    only = by_variant.get(("only-stage1", "quote-as-assessed"), {})
+    hop = by_variant.get(("next-hop", "quote-as-assessed", DEFAULT_MODEL), {})
+    only = by_variant.get(("only-stage1", "quote-as-assessed", DEFAULT_MODEL), {})
     if hop or only:
         print()
         print("=" * 78)
@@ -790,14 +806,14 @@ def main() -> int:
         print("before any of these batches ran)")
         print("=" * 78)
         rows = verdicts(full, hop, only,
-                        leaks_by_variant.get(("next-hop", "quote-as-assessed"), {}))
+                        leaks_by_variant.get(("next-hop", "quote-as-assessed", DEFAULT_MODEL), {}))
         if not rows:
             print("  no verdicts yet: the arms have not produced artifacts")
         for label, ok, detail in rows:
             print(f"  [{'PASS' if ok else 'FAIL'}] {label}")
             print(f"          {detail}")
 
-    concl = by_variant.get(("full", "conclusion-only"), {})
+    concl = by_variant.get(("full", "conclusion-only", DEFAULT_MODEL), {})
     if concl:
         print()
         print("=" * 78)
