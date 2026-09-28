@@ -185,6 +185,7 @@ python repro/claims_audit.py                       # 14 executable claims; exit 
 python repro/freeze_manifest.py --check            # MANIFEST.sha256 vs this tree
 python repro/chain_stats.py                        # §2's tables + the pre-registered gate
 python repro/two_lenses.py                         # the unconstrained vs source-constrained claim
+python repro/c1_verdict.py --model MiniMax-M2.7    # the C-1 predictions, applied mechanically
 python repro/d2_verdict.py --since 2026-09-28T02:00:00Z
 python repro/d4_verdict.py --since 2026-09-28T04:00:00Z
 python repro/leak_figure.py --csv leak.csv         # the item x boundary figure
