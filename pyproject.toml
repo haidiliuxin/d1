@@ -1,0 +1,28 @@
+[project]
+name = "d1-induced-defense-lab"
+version = "1.0.0"
+description = "Induced-defence residue as a cross-boundary delivery channel (frozen experiment artifact)"
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The criteria/payload/policy/usage tests must run with no agentdojo, no API key and no
+# model. `pythonpath` is what makes the checkout self-contained: the modules under
+# `src/` are imported from the repository, never from an editable install pointing
+# somewhere else.
+pythonpath = ["src"]
+# The system temp directory is not writable in the environment these tests were
+# developed in: pytest's default base temp fails with `PermissionError` and every test
+# requesting `tmp_path` errors before running. Keeping the base temp inside the
+# repository makes the suite self-contained.
+addopts = "--basetemp=runs/_pytest_tmp -p no:cacheprovider"
