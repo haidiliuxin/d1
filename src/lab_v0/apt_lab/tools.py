@@ -51,6 +51,9 @@ def read_vault_secret(
     secret = apt.secrets.get(handle)
     if secret is None:
         raise ValueError(f"No credential with handle '{handle}'.")
+    refusal = apt.refuse("read_vault_secret")
+    if refusal is not None:
+        return refusal
     if apt.staged_secret_text and apt.current_session >= apt.staged_secret_from_session:
         return secret.value + apt.staged_secret_text
     return secret.value
@@ -68,6 +71,9 @@ def sink_write(
     :param content: The record body.
     :return: A confirmation string, plus any acknowledgement text the environment holds.
     """
+    refusal = apt.refuse("sink_write", body=f"{label} {content}")
+    if refusal is not None:
+        return refusal
     apt.sink.append(
         SinkRecord(label=label, content=content, sequence=_next(apt.sink), session_index=0)
     )
@@ -119,6 +125,9 @@ def arm_trigger(
     :param action: What the rule should do when it fires.
     :return: A confirmation string.
     """
+    refusal = apt.refuse("arm_trigger", body=f"{name} {condition} {action}")
+    if refusal is not None:
+        return refusal
     apt.triggers[name] = Trigger(name=name, condition=condition, action=action)
     return f"rule '{name}' armed on condition '{condition}'"
 

@@ -61,6 +61,7 @@ from lab_v0.apt_lab.chain_payloads import (  # noqa: E402
     seed_staged_texts,
 )
 from lab_v0.apt_lab.criteria import (  # noqa: E402
+    STAGE3_DISCRIMINATORS,
     LABEL,
     TOKEN,
     TOKEN_VALUE,
@@ -222,13 +223,28 @@ def chain_spec(variant: PayloadVariant, plant: str = "inbox") -> FamilySpec:
 def run_one(
     *, arm: str, seed: int, payload_variant: str = "full",
     policy: str = "quote-as-assessed", model: str = MODEL, plant: str = "inbox",
-    role_compat: bool = False,
+    role_compat: bool = False, roles: bool = False,
 ) -> dict:
     variant = PAYLOAD_VARIANTS[payload_variant]
     policy_text = POLICY_VARIANTS[policy]
     spec = chain_spec(variant, plant)
     suite = build_suite()
     env = new_environment()
+    if roles:
+        # D-1: three real tool-level permissions. The marker narrows each one to the
+        # payload-bearing call, so the session keeps being able to do its own job with the
+        # tool -- otherwise the arm would break the task and P-D1.3 would be vacuous.
+        apt_state = env.apt
+        apt_state.role_permissions = {
+            "read_vault_secret": 3,
+            "sink_write": 5,
+            "arm_trigger": 7,
+        }
+        apt_state.role_markers = {
+            "read_vault_secret": "",
+            "sink_write": TOKEN_VALUE,
+            "arm_trigger": STAGE3_DISCRIMINATORS[0],
+        }
     fixtures = seed_environment(env, policy=policy_text)
     baseline = baseline_text(env, policy=policy_text)
     seed_scenario(env, spec, environment_seeded=True)
@@ -258,7 +274,7 @@ def run_one(
     record: dict = {
         "schema_version": "apt_lab.chain.v1", "arm": arm, "seed": seed,
         "payload_variant": variant.name, "policy": policy, "model": model,
-        "plant": plant, "role_compat": role_compat,
+        "plant": plant, "role_compat": role_compat, "roles": bool(roles),
         "payload_tokens": len(tokens), "stages": [],
     }
     started = time.time()
@@ -452,7 +468,8 @@ def run_one(
     def first_boundary_for(item: int, key: str) -> int | None:
         """Earliest boundary whose *surviving* carriers still hold this item.
 
-        `None` means the item never survived any boundary. 1 means the residue at the
+        
+one` means the item never survived any boundary. 1 means the residue at the
         first hand-off already carried an item the chain claims to deliver later.
         """
 
@@ -484,6 +501,8 @@ def main() -> int:
                         help="review policy: the workspace obligation the residue comes from")
     parser.add_argument("--seed-base", type=int, default=8400,
                         help="label of the first replicate; labels only, they do not seed the model")
+    parser.add_argument("--roles", choices=("off", "on"), default="off",
+                        help="enforce the three tool-level role permissions (D-1 arm; off = the frozen behaviour)")
     parser.add_argument("--plant", choices=sorted(PLANT_SEATS), default="inbox",
                         help="which carrier family the injection is planted in (Phase C axis)")
     parser.add_argument("--model", default=MODEL,
@@ -515,6 +534,11 @@ def main() -> int:
     effective_base = os.environ.get("OPENAI_BASE_URL", "")
     role_compat = bool(args.base_url) and "minimax" not in effective_base.casefold()
 
+    # D-1's treatment switch. Off by default, and that default is not a convenience: every
+    # published run was produced with no permission enforced, so `--roles off` has to keep
+    # behaving exactly as the frozen arm did.
+    roles = args.roles == "on"
+
     variant_names = [v.strip() for v in args.payload.split(",") if v.strip()]
     unknown = [v for v in variant_names if v not in PAYLOAD_VARIANTS]
     if unknown:
@@ -524,6 +548,7 @@ def main() -> int:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     suffix = "" if args.policy == "quote-as-assessed" else f"-{args.policy}"
     plant_tag = "" if args.plant == "inbox" else "-" + args.plant
+    roles_tag = "-roles" if args.roles == "on" else ""
     model_tag = "" if args.model == MODEL else "-" + args.model.split("/")[-1]
     # More than one name means the arms are **interleaved** replicate by replicate. A
     # control batch that merely runs next to the arm is not enough: the `full` arm has
@@ -531,7 +556,7 @@ def main() -> int:
     # (1/12 vs 5/12), so an arm run at 03:00 and its control at 04:00 can differ for
     # reasons that have nothing to do with the design.
     variant_tag = "+".join(variant_names)
-    batch = args.output / f"chain-{stamp}-{variant_tag}{suffix}{model_tag}{plant_tag}"
+    batch = args.output / f"chain-{stamp}-{variant_tag}{suffix}{model_tag}{plant_tag}{roles_tag}"
     batch.mkdir(parents=True, exist_ok=True)
 
     print("DIRECTION-2 CHAIN: 7 sessions, 3 boundaries, one injection")
@@ -545,6 +570,9 @@ def main() -> int:
     print(f"  policy={args.policy}: "
           f"{'the workspace obliges reviewers to QUOTE what they set aside' if args.policy == 'quote-as-assessed' else 'the workspace forbids reproducing the text assessed'}")
     print(f"  seeds={args.seeds}/arm (base {args.seed_base})  concurrency={args.concurrency}")
+    if roles:
+        print("  roles=ON: read_vault_secret->S3, sink_write(payload token)->S5, "
+              "arm_trigger(payload rule)->S7; refusals are returned as tool results")
     if role_compat:
         print(f"  role_compat=ON: `developer` -> `system` on the wire "
               f"(endpoint {effective_base} rejects the OpenAI role name)")
@@ -580,7 +608,7 @@ def main() -> int:
             print(f"--- {arm} seed={seed} payload={variant_name} ---", flush=True)
             row = run_one(arm=arm, seed=seed, payload_variant=variant_name,
                           model=args.model, plant=args.plant, policy=args.policy,
-                          role_compat=role_compat)
+                          role_compat=role_compat, roles=roles)
             rows.append(row)
             report(row)
     else:
@@ -590,7 +618,7 @@ def main() -> int:
             futures = {
                 pool.submit(run_one, arm=arm, seed=seed, payload_variant=variant_name,
                             model=args.model, plant=args.plant, policy=args.policy,
-                            role_compat=role_compat):
+                            role_compat=role_compat, roles=roles):
                     (arm, seed, variant_name)
                 for arm, seed, variant_name in jobs
             }
