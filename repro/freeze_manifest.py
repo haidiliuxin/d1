@@ -58,7 +58,7 @@ def digested() -> list[str]:
 
 def manifest() -> int:
     lines = digested()
-    MANIFEST.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    MANIFEST.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     print(f"MANIFEST.sha256: {len(lines)} files")
     return len(lines)
 
@@ -148,7 +148,7 @@ def inventory() -> int:
         "never ran.",
         "",
     ]
-    INVENTORY.write_text("\n".join(lines), encoding="utf-8")
+    INVENTORY.write_text("\n".join(lines), encoding="utf-8", newline="\n")
     print(f"INVENTORY.md: {len(rows)} batches, {total_runs} runs, "
           f"{total_tokens / 1e6:.1f}M tokens")
     return 0
