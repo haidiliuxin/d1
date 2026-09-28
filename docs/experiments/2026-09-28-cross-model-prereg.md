@@ -88,3 +88,36 @@ F:\think\tools\miniforge3\envs\agentdojo\python.exe scripts\apt_lab\chain.py `
 （至少再加一个模型），因为单个反例不足以把机制判死、单个正例也不足以把它立起来。反之如果
 P-C1.1 与 P-C1.3 都成立，则 C-1 支撑的是"这是一条机制级的通道"，下一步才是真正的工具级角色
 分离（当前 8.4 倍这个数字仍然只是**测量约定**下的差值）。
+
+## 9. 修订 1（2026-09-28，**在读到该臂任何数据之前**）
+
+第一次启动两批全部失败、各写入 **0 个 artifact**（两个批次目录各留 `FAILED.md`，按"没有 run 的批次
+不入任何池"处理）。两件事都发生在**取数之前**，所以下面是修装置，不是看完数据改判据：**§3 的四条预测、
+§4 的读表规则、§5 的守卫，一个字都没改。**
+
+**修订 9.1（线路格式，非判据）**：DeepSeek 端点拒绝 OpenAI 较新的 `developer` 角色——AgentDojo 的
+OpenAI wrapper 把 system 消息映射成 `developer`：
+
+```
+422 Failed to deserialize the JSON body into the target type:
+    messages[0].role: unknown variant `developer`
+```
+
+而 MiniMax 接受该角色（实测：同一请求打到 MiniMax 得到的是"模型名无效"，不是角色错误）。修法：
+`lab_v0.apt_lab.usage.rewrite_roles` 在**线路层**把 `developer` 改写为 `system`，由新增的
+`role_compat` 开关控制，chain.py **只对非 MiniMax 的 `--base-url` 打开它**。刻意不做成全局默认：
+把冻结臂的线路格式一起换掉，会让新的 MiniMax run 因为一个与机制无关的原因失去与已发布池的可比性。
+该开关逐 artifact 记为 `role_compat`，所以"这一臂跑在略有不同的线格式上"是**数据里可见**的，
+而不只写在提交信息里。
+
+两向验证（各一次真实调用，走 `build_pipeline` 同一条代码路径）：`role_compat=False` → 422（复现启动
+失败）、`role_compat=True` → OK（4597 token）。另加 3 条离线单测（改写生效 / 默认不改写 / 畸形消息不崩）。
+
+**修订 9.2（同刻参照批延期）**：MiniMax 侧撞上计划额度上限（429，`2056 已达到 Token Plan 用量上限`），
+参照批同样没跑起来。§2 里那个"先跑一批 MiniMax 12 run"的要求因此**延期**，不取消。
+
+这不影响判定，因为**四条预测没有一条依赖参照批**：P-C1.1（≥8/12）、P-C1.2（≤4/12）、P-C1.4（C0 ≤1）
+都是绝对阈值，P-C1.3（联合率 == 持久化率）是臂内性质。参照批守护的是**描述性的跨模型对比**——而
+§3 已明确不登记 n=12 下的跨模型显著性检验。因此：**DeepSeek 臂照跑并照常判定；跨模型的描述性对比
+在参照批补齐（或额度恢复）之前不发布。**
+

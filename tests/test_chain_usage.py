@@ -93,3 +93,48 @@ def test_the_proxy_can_share_one_sink_across_runs():
         client = UsageRecordingClient(real, sink)
         client.chat.completions.create(model="m", messages=[])
     assert sink["calls"] == 3 and sink["total_tokens"] == 30
+
+
+# --- the cross-provider role shim ---------------------------------------------------
+#
+# Earned by a launch failure rather than by reasoning: the first `deepseek-chat` batch died
+# on its first model call with `422 unknown variant 'developer'`, because AgentDojo maps a
+# system message to OpenAI's newer `developer` role and DeepSeek only accepts `system`.
+# Two directions matter here: the shim must rewrite when asked, and must leave the frozen
+# arm's wire format *bit-for-bit alone* when not asked.
+
+def test_role_compat_rewrites_developer_to_system():
+    real, completions = fake_client(
+        SimpleNamespace(prompt_tokens=1, completion_tokens=1, total_tokens=2)
+    )
+    client = UsageRecordingClient(real, role_compat=True)
+    client.chat.completions.create(
+        model="deepseek-chat",
+        messages=[{"role": "developer", "content": "sys"}, {"role": "user", "content": "hi"}],
+    )
+    assert completions.calls[0]["messages"] == [
+        {"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}
+    ]
+    assert client.role_rewrites == 1
+
+
+def test_role_compat_is_off_by_default_and_leaves_the_frozen_arm_untouched():
+    real, completions = fake_client(
+        SimpleNamespace(prompt_tokens=1, completion_tokens=1, total_tokens=2)
+    )
+    client = UsageRecordingClient(real)
+    client.chat.completions.create(
+        model="MiniMax-M2.7", messages=[{"role": "developer", "content": "sys"}]
+    )
+    assert completions.calls[0]["messages"] == [{"role": "developer", "content": "sys"}]
+    assert client.role_rewrites == 0
+
+
+def test_role_rewrite_tolerates_odd_message_shapes():
+    """A shim that crashes on an unexpected message would take the whole run with it."""
+
+    from lab_v0.apt_lab.usage import rewrite_roles
+
+    assert rewrite_roles(None) == 0
+    assert rewrite_roles("not a list") == 0
+    assert rewrite_roles([object(), {"role": "tool"}]) == 0

@@ -159,17 +159,22 @@ SYSTEM_MESSAGE = (
 
 
 def build_pipeline(
-    model: str = MODEL, usage: dict[str, int] | None = None
+    model: str = MODEL, usage: dict[str, int] | None = None,
+    role_compat: bool = False,
 ) -> AgentPipeline:
     """The model under test. A parameter, not a constant, because Phase C varies it.
 
     `usage` collects tokens from the calls this run makes. The upstream wrapper discards
     `completion.usage`, so without the proxy a scaled-up study has no cost figure at all.
+
+    `role_compat` rewrites OpenAI's newer `developer` role back to `system` on the wire.
+    It is opt-in per endpoint because the frozen arm has to keep the exact wire format its
+    published runs used: see `docs/experiments/2026-09-28-cross-model-prereg.md` §9.
     """
 
     client = openai.OpenAI()
     if usage is not None:
-        client = UsageRecordingClient(client, usage)  # type: ignore[assignment]
+        client = UsageRecordingClient(client, usage, role_compat=role_compat)  # type: ignore[assignment]
     llm = OpenAILLM(client, model, temperature=0.1)
     return AgentPipeline(
         [SystemMessage(SYSTEM_MESSAGE), InitQuery(), llm,
@@ -217,6 +222,7 @@ def chain_spec(variant: PayloadVariant, plant: str = "inbox") -> FamilySpec:
 def run_one(
     *, arm: str, seed: int, payload_variant: str = "full",
     policy: str = "quote-as-assessed", model: str = MODEL, plant: str = "inbox",
+    role_compat: bool = False,
 ) -> dict:
     variant = PAYLOAD_VARIANTS[payload_variant]
     policy_text = POLICY_VARIANTS[policy]
@@ -246,13 +252,13 @@ def run_one(
         return items_in_text_loose(text, variant.items, item_tokens, variant.anchors)
 
     usage = blank_usage()
-    pipeline = build_pipeline(model, usage)
+    pipeline = build_pipeline(model, usage, role_compat=role_compat)
     run = SessionRun()
     producer_of = {r: "seed" for r in carrying_refs(env, spec.payload, tokens, fixtures=fixtures)}
     record: dict = {
         "schema_version": "apt_lab.chain.v1", "arm": arm, "seed": seed,
         "payload_variant": variant.name, "policy": policy, "model": model,
-        "plant": plant,
+        "plant": plant, "role_compat": role_compat,
         "payload_tokens": len(tokens), "stages": [],
     }
     started = time.time()
@@ -499,6 +505,16 @@ def main() -> int:
     if args.base_url:
         os.environ["OPENAI_BASE_URL"] = args.base_url
 
+    # Endpoint compatibility, decided here and recorded per artifact. AgentDojo's OpenAI
+    # wrapper sends system messages with OpenAI's newer `developer` role; MiniMax accepts
+    # it and DeepSeek rejects the whole request (measured: 422 `unknown variant
+    # 'developer'`), so a cross-provider arm cannot start at all without the rewrite. It is
+    # enabled **only** for a non-MiniMax endpoint: switching the frozen arm's wire format
+    # would make its new runs incomparable with the published pool for a reason that has
+    # nothing to do with the mechanism under test.
+    effective_base = os.environ.get("OPENAI_BASE_URL", "")
+    role_compat = bool(args.base_url) and "minimax" not in effective_base.casefold()
+
     variant_names = [v.strip() for v in args.payload.split(",") if v.strip()]
     unknown = [v for v in variant_names if v not in PAYLOAD_VARIANTS]
     if unknown:
@@ -529,6 +545,9 @@ def main() -> int:
     print(f"  policy={args.policy}: "
           f"{'the workspace obliges reviewers to QUOTE what they set aside' if args.policy == 'quote-as-assessed' else 'the workspace forbids reproducing the text assessed'}")
     print(f"  seeds={args.seeds}/arm (base {args.seed_base})  concurrency={args.concurrency}")
+    if role_compat:
+        print(f"  role_compat=ON: `developer` -> `system` on the wire "
+              f"(endpoint {effective_base} rejects the OpenAI role name)")
     print(f"batch: {batch}\n")
 
     jobs = [
@@ -560,7 +579,8 @@ def main() -> int:
         for arm, seed, variant_name in jobs:
             print(f"--- {arm} seed={seed} payload={variant_name} ---", flush=True)
             row = run_one(arm=arm, seed=seed, payload_variant=variant_name,
-                          model=args.model, plant=args.plant, policy=args.policy)
+                          model=args.model, plant=args.plant, policy=args.policy,
+                          role_compat=role_compat)
             rows.append(row)
             report(row)
     else:
@@ -569,7 +589,8 @@ def main() -> int:
         with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
             futures = {
                 pool.submit(run_one, arm=arm, seed=seed, payload_variant=variant_name,
-                            model=args.model, plant=args.plant, policy=args.policy):
+                            model=args.model, plant=args.plant, policy=args.policy,
+                            role_compat=role_compat):
                     (arm, seed, variant_name)
                 for arm, seed, variant_name in jobs
             }
