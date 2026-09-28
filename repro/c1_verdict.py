@@ -26,8 +26,16 @@ sys.path.insert(0, str(_HERE))
 import chain_stats as cs  # noqa: E402
 import two_lenses as tl  # noqa: E402
 
-#: Frozen in the pre-registration, §2 and §3. Not to be adjusted after seeing data.
-REGISTERED_N = 12
+#: Frozen in the pre-registration, §2 and §3 -- but those two sections disagree, and the
+#: disagreement is logged rather than smoothed over (amendment 2, defect 21): §2 registers
+#: **6 replicates per arm** (12 runs in the batch) while §3 writes the thresholds as
+#: `>= 8/12` and `<= 4/12`, which is arithmetically unreachable at 6 runs per arm. The
+#: *fractions* (67%, 33%) are defined at both n, so they are the primary reading; a top-up
+#: batch took the R arm to 12 so that the absolute reading is decidable too. `ARM_TARGET`
+#: is therefore the per-arm size, and a status resting on fewer runs than this is marked
+#: preliminary rather than passed.
+ARM_TARGET = 12
+REGISTERED_N = ARM_TARGET
 P_C11_MIN_FRACTION = 8 / 12
 P_C12_MAX_FRACTION = 4 / 12
 P_C14_MAX_CONTROL_DELIVERED = 1
@@ -182,10 +190,11 @@ def main() -> int:
     print("pre-registered 2026-09-28 (+ amendment 1); thresholds are the registered ones")
     print("=" * 78)
     print(f"\nR-forced runs: {len(r_runs)}   C0-forced runs: {len(c_runs)}"
-          f"   (registered target {REGISTERED_N} per arm)")
-    if len(r_runs) < REGISTERED_N:
-        print(f"  PRELIMINARY: a status marked * rests on {len(r_runs)} of the registered "
-              f"{REGISTERED_N} runs and is not the registered test")
+          f"   (registered arm size {ARM_TARGET}; pre-registration §2 asked for 6 per arm "
+          f"and §3 wrote the lines as x/12 -- see amendment 2)")
+    if len(r_runs) < ARM_TARGET:
+        print(f"  PRELIMINARY: a status marked * rests on {len(r_runs)} of the {ARM_TARGET} "
+              f"runs and is not the registered test")
 
     print()
     for name, status, detail in verdicts(r_runs, "R arm"):
