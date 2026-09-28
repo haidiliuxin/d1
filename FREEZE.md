@@ -3,6 +3,13 @@
 **Date:** 2026-09-28 · **Tag:** `freeze-v1.0` · **Kind:** curated snapshot of one experiment
 line (the induced-defence residue chain), not a fork of the parent project.
 
+> **Which commit to cite.** `freeze-v1.0` is the snapshot as it stood when the freeze was
+> taken. The audit that the freeze itself triggered (§4) then corrected four measurement
+> defects and hardened the manifest, and those fixes live on `main` **after** the tag. So:
+> cite a commit hash, not the tag name; use the newest `main` for the corrected numbers, and
+> `freeze-v1.0` only to see the artifact as of the freeze. The headline verdicts are the
+> same either way — the gate is NO-GO and both design arms are unsupported on both.
+
 ## 1. What was frozen, and from where
 
 | | |
