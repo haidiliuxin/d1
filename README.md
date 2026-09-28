@@ -132,7 +132,14 @@ Together the two design arms consumed **54.0M tokens** in their own batches (D2�
 30.4M; their same-time D2′ control batch a further 18.9M) and support one conclusion worth
 keeping: **rewriting the payload's wording is not the lever.** Of 31 failures of the
 persistence stage, 21 were "nobody armed anything" and **0** were "armed the payload's rule
-and it failed to fire". The binding step is a session's *decision to register* the rule.
+and it failed to fire".
+
+The fuller decomposition (`repro/c1_compare.py`, unconstrained lens, n=100) splits the
+losses almost evenly between "the defence produced no residue" (18), "the rule text
+was available and nobody registered it" (17) and "the token never reached the sink"
+(10). So the arming decision is the largest loss *inside* the channel -- but an earlier
+draft of this README called it *the* binding step, which was too strong: it competes
+with residue formation itself.
 
 ## 3. The freeze audit (why this snapshot is trustworthy, and what it cost)
 
@@ -186,6 +193,7 @@ python repro/freeze_manifest.py --check            # MANIFEST.sha256 vs this tre
 python repro/chain_stats.py                        # §2's tables + the pre-registered gate
 python repro/two_lenses.py                         # the unconstrained vs source-constrained claim
 python repro/c1_verdict.py --model MiniMax-M2.7    # the C-1 predictions, applied mechanically
+python repro/c1_compare.py                         # cross-model contrast, per-lens loss decomposition
 python repro/d2_verdict.py --since 2026-09-28T02:00:00Z
 python repro/d4_verdict.py --since 2026-09-28T04:00:00Z
 python repro/leak_figure.py --csv leak.csv         # the item x boundary figure
