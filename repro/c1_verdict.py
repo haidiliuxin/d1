@@ -59,7 +59,8 @@ def arm_runs(model: str, arm: str) -> list[dict]:
         if d.name in cs.PRE_FINAL_CRITERIA_BATCHES:
             continue
         for _stem, j, _v, _p in cs.runs_of(
-                d, variant="full", policy="quote-as-assessed", model=model):
+                d, variant="full", policy="quote-as-assessed", model=model,
+                roles=False):
             if j.get("arm") == arm:
                 out.append(j)
     return out

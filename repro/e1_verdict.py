@@ -49,7 +49,8 @@ def batches() -> dict[str, list[pathlib.Path]]:
     for d in sorted(cs.ROOT.glob("chain-*")):
         if not d.is_dir() or d.name in cs.VOID_BATCHES:
             continue
-        variants = {v for _s, _j, v, _p in cs.runs_of(d, model=cs.DEFAULT_MODEL)}
+        variants = {v for _s, _j, v, _p in cs.runs_of(d, model=cs.DEFAULT_MODEL,
+                                                     roles=False)}
         for name in (CONTROL, TREATED):
             if name in variants:
                 found[name].append(d)
@@ -71,7 +72,8 @@ def arm(payload: str, only: set[pathlib.Path] | None = None) -> list[dict]:
         if only is not None and d not in only:
             continue
         for _stem, j, _v, _p in cs.runs_of(
-                d, variant=payload, policy="quote-as-assessed", model=cs.DEFAULT_MODEL):
+                d, variant=payload, policy="quote-as-assessed",
+                model=cs.DEFAULT_MODEL, roles=False):
             if j.get("arm") == "R-forced":
                 out.append(j)
     return out

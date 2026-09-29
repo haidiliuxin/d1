@@ -327,20 +327,30 @@ Deltas, all of them **analysis-only or documentation-only** — nothing under `s
 
 ## 8. Standing research disciplines used here
 
-Worth reading before extending this work, because each one was earned by a defect (20 are
+Worth reading before extending this work, because each one was earned by a defect (23 are
 logged in the chain spec):
 
 * every criterion and every verdict needs a must-accept **and** a must-reject sample;
 * recompute from the raw event list, never trust the harness's own summary field (the three
   documented disagreements in `chain-20260927-120354` are why claim `C1.d` exists);
 * never pool runs that cannot be scored by one rule — and never pool runs of another
-  treatment under a batch's name;
+  treatment under a batch's name. The pool key must name **everything** that makes two runs
+  different treatments: payload, policy, model, and the permission switch. Each of those was
+  added after a defect, and the model and permission ones were added *before* their arms ran,
+  which is the only reason they are not in the defect ledger;
+* a criterion that cannot fail is not a criterion. Before reporting PASS, ask what a run
+  would have to look like to FAIL — a permission with no refusals to measure, a threshold the
+  control already meets, a detector that fires on everything;
 * never loosen or switch the primary endpoint after seeing data; report the loose detector
   beside the strict one, never instead of it;
 * a capability claim must be reported under **both** lenses, or it is not a claim;
 * mutually exclusive categories must be asserted to sum to n, and a joint rate must be
   asserted to be ≤ each of its marginals;
-* prefer an offline probe of the instrument to another live batch.
+* prefer an offline probe of the instrument to another live batch;
+* **prose and code belong in a file, not in shell string assembly.** Three separate
+  corruption incidents came from building quoted, multi-line text inside a PowerShell
+  argument: a truncated commit message, a paragraph with an escape sequence eaten out of it,
+  and four analysis files left with dangling lines. Use the file tools for both.
 
 ## 9. Ethics and scope
 

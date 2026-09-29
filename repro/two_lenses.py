@@ -60,7 +60,8 @@ def pool() -> list[dict]:
         if d.name in cs.PRE_FINAL_CRITERIA_BATCHES:
             continue
         for _stem, j, _v, _p in cs.runs_of(
-                d, variant="full", policy="quote-as-assessed", model=MODEL):
+                d, variant="full", policy="quote-as-assessed", model=MODEL,
+                roles=False):
             if j.get("arm") == "R-forced":
                 runs.append(j)
     return runs

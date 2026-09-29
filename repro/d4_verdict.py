@@ -114,7 +114,7 @@ def main() -> int:
                     continue
             for _stem, j, _v, _p in cs.runs_of(
                     d, variant=variant, policy="quote-as-assessed",
-                    model=cs.DEFAULT_MODEL):
+                    model=cs.DEFAULT_MODEL, roles=False):
                 if j.get("arm") == "R-forced":
                     out.append(j)
         return out

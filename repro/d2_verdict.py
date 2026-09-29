@@ -44,7 +44,7 @@ def rows_of(batch: pathlib.Path, arm: str = "R-forced",
 
     return [
         j for _stem, j, _v, _p in cs.runs_of(
-            batch, variant=variant, policy=policy, model=model)
+            batch, variant=variant, policy=policy, model=model, roles=False)
         if j.get("arm") == arm
     ]
 
@@ -108,7 +108,8 @@ def main() -> int:
                 continue
             if cs.variant_of(d) != variant or cs.policy_of(d) != policy:
                 continue
-            if not cs.runs_of(d, variant=variant, policy=policy, model=model):
+            if not cs.runs_of(d, variant=variant, policy=policy, model=model,
+                              roles=False):
                 continue  # a batch of this payload but another model is not this control
             if since is not None:
                 # The batch *name*, not `st_ctime`: a fresh checkout resets every

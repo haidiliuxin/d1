@@ -40,7 +40,9 @@ def pool_for(variant: str, policy: str,
             continue
         if variant == "full" and d.name in cs.PRE_FINAL_CRITERIA_BATCHES:
             continue
-        info = cs.batch(d, variant=variant, policy=policy, model=model)
+        # roles=False: every number this snapshot records is a published rate, and the
+        # D-1 permission arm is a different treatment.
+        info = cs.batch(d, variant=variant, policy=policy, model=model, roles=False)
         if not info["arms"]:
             continue
         used.append(d.name)
