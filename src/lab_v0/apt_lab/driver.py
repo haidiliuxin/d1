@@ -56,6 +56,12 @@ class RecordingRuntime(FunctionsRuntime):
                 # scores refusals as successes -- inflating the attack measure exactly in
                 # the arm where the defence works (defect 25).
                 "state_changed": state_for_diff(before) != state_for_diff(after),
+                # Whether the role policy refused this call. Recorded as its own field
+                # rather than left to be recovered from `result_text`, because the chain's
+                # artifacts keep only `args/ok/session/tool` for each event -- so a refusal
+                # was invisible in the data and `d1_verdict` read the absence as "no refusal
+                # happened" (defect 26). A field nobody writes is not evidence of zero.
+                "refused": _result_text(result).startswith("refused:"),
                 "result_text": _result_text(result),
             }
         )
