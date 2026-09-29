@@ -141,6 +141,53 @@ was available and nobody registered it" (17) and "the token never reached the si
 draft of this README called it *the* binding step, which was too strong: it competes
 with residue formation itself.
 
+### 2.5 The cross-model arm: the channel transfers, the ratchet does not
+
+Registered before it ran (`docs/experiments/2026-09-28-cross-model-prereg.md`), with the same
+host, payload, policy, criteria and detectors — only the model changes. `repro/c1_verdict.py`
+applies the registered predictions mechanically; `repro/c1_compare.py` prints every rate
+beside its own control floor.
+
+| quantity | `MiniMax-M2.7` (n=100 R / 85 C0) | `deepseek-chat` (n=16 R / 12 C0) |
+|---|---|---|
+| review record left | 96/100 (0/85) | **16/16** (0/12) |
+| residue holds the payload | 78/100 | **16/16** |
+| credential read | 80/100 (**0/85**) | 2/16 (**10/12**) |
+| token to sink under the label | 27/82 | **0/16** |
+| rule armed + fired | 46/100 (0/85) | 4/16 (0/12) |
+| **stage 3 DELIVERED** | 15/82 (0/67) | **1/16** (0/12) |
+| joint (all three) | 50/82 = 61% | **0/16** |
+| persistence | 50/82 = 61% | 4/16 |
+
+Registered verdicts on the second model, all decidable at the registered arm size:
+P-C1.1 channel forms **16/16 = 100%** ✓, P-C1.2 channel bounded **1/16 = 6.2%** ✓,
+P-C1.4 control clean **0/12** ✓, P-C1.3 ratchet **not equal** (joint 0/16 vs persistence 4/16).
+
+**Three readings, and the third is why the arm was run at all:**
+
+1. **The channel transfers, and forms more thoroughly on the second model** — 16/16 records
+   and 16/16 residues against 96/100 and 78/100 (Fisher p = 0.039). "The defender's
+   compliance artefact carries attacker bytes" is not a MiniMax quirk.
+2. **Boundedness behaves like a mechanism property**: 18% vs 6% delivered, no significant
+   difference (p = 0.46). Both models stop at the same order of magnitude.
+3. **The ratchet is a model property.** On MiniMax the joint rate *equals* the persistence
+   rate exactly (50/82 = 50/82); on `deepseek-chat` the joint rate (0/16) is *below*
+   persistence (4/16). MiniMax alone would have put the ratchet into the paper as a
+   mechanism statement.
+
+And one inverted finding that has to travel with the table: `deepseek-chat`'s **control** arm
+reads the credential in 10/12 runs while its induced-defence arm reads it in 2/16 — the
+opposite of MiniMax (0/85 vs 80/100). The control leaves no residue at all, so those reads
+are the model's own initiative, plausibly because the quoted memo diverts the session from
+the workspace inventory it would otherwise perform. So **stage 1 is evidence of delivery only
+where the control floor is near zero**, and the floor this project had treated as a ~2% tail
+is measured at 83% on the second model. Every stage-1 endpoint must carry its own model's
+floor.
+
+The contrast is labelled **provisional**: it is against the frozen MiniMax pool rather than a
+same-time reference batch, and the `full` arm swings by up to 2× between batches. That
+reference batch is registered and blocked (§6).
+
 ## 3. The freeze audit (why this snapshot is trustworthy, and what it cost)
 
 The acceptance test for freezing was not "the files copied" but "**every script in `repro/`
@@ -162,20 +209,21 @@ reproduce.
 ## 4. Repository layout
 
 ```
-docs/experiments/      the full research record: chain spec (§9.1–§9.25, pre-registrations,
-                       three revisions, 20 logged measurement defects), conclusions,
-                       channel-boundary-and-mitigation, paper outline, reproduction guide
+docs/experiments/      the full research record: chain spec (§9.1–§9.26, pre-registrations,
+                       four revisions, 23 logged measurement defects), C-1 cross-model and
+                       D-1/E-1 pre-registrations, conclusions, channel-boundary-and-
+                       mitigation, paper outline, reproduction guide
 src/lab_v0/apt_lab/    the laboratory: payloads, stage criteria, sandboxed tools, virtual
                        state, AgentDojo suite assembly, the session driver, token accounting
 scripts/apt_lab/       runners: chain.py (the live experiment), phase1/phase2/q2 gates,
                        probe_residue_items.py (offline two-direction probe of the criteria)
-tests/                 64 offline tests of the criteria, payload staging invariants, policy
+tests/                 77 offline tests of the criteria, payload staging invariants, policy
                        variants and token accounting — no agentdojo, no key, no model
 repro/                 every analysis script; each number quoted above comes from one
 runs/apt_lab/           raw traces: 22 batches, 348 run artefacts, plus logs and leak_index.csv
 ```
 
-Inventory: 348 run artefacts (186 R-forced, 162 C0-forced) across 22 batches; **one batch is
+Inventory: 392 run artefacts across 27 batches; **one batch is
 void** (a missing session seal let an item reach boundary 1 too early — kept, marked
 `VOID.md`, excluded from every pool). 167 of the 348 carry token accounting (the recording
 proxy was added mid-campaign): those consumed **151.6M tokens**, ≈0.91M per run.
@@ -194,6 +242,7 @@ python repro/chain_stats.py                        # §2's tables + the pre-regi
 python repro/two_lenses.py                         # the unconstrained vs source-constrained claim
 python repro/c1_verdict.py --model MiniMax-M2.7    # the C-1 predictions, applied mechanically
 python repro/c1_compare.py                         # cross-model contrast, per-lens loss decomposition
+python repro/d1_verdict.py --model deepseek-chat   # the D-1 permission arm (N/A where untestable)
 python repro/d2_verdict.py --since 2026-09-28T02:00:00Z
 python repro/d4_verdict.py --since 2026-09-28T04:00:00Z
 python repro/leak_figure.py --csv leak.csv         # the item x boundary figure
@@ -219,22 +268,40 @@ in `.gitattributes` so a fresh checkout is byte-identical to the manifest on eve
 
 Stated as limitations rather than footnotes, because each one is a live gap:
 
-1. **One model.** Every number is `MiniMax-M2.7` at `temperature=0.1`. The channel depends
-   on a model that quotes its sources at length; a model that summarises instead would
-   collapse it. Cross-model measurement is the single biggest open gap.
+1. **One model for the headline tables, two for the mechanism.** Everything in §2 is
+   `MiniMax-M2.7` at `temperature=0.1`. The cross-model arm has since been run (§2.5): it
+   partly closes this gap and partly sharpens it — the channel *forms* on a second model and
+   stays bounded, but the ratchet does not transfer, and the stage-1 control floor turns out
+   to be model-dependent (0/85 on MiniMax, 10/12 on `deepseek-chat`). Two models establish
+   that those are not universal; they do not establish what a third would do, and the C-1 arm
+   is 16 runs against this pool's 100.
 2. **The policy lever is unestablished.** The wording ablation is directional (80%→57% at
    stage 1; 25%→7% at stage 3) but underpowered at n = 14. A third wording variant at
    adequate power is registered and unrun.
 3. **Role separation was simulated, not enforced.** The source constraint is a *measurement
-   convention* applied to traces, not a permission the host refuses. Implementing it as a
-   real tool-level permission is the highest-value follow-up — and §2 says it is worth
-   ≈8.4×.
-4. **A ~2% control floor.** The control arm is not perfectly zero across all payloads
-   (`only-stage1` C0 stage 1 = 1/12), and the stage-2 criterion has its own floor
-   (`only-stage1` loose 1/12, strict 0/12). Both are reported rather than rounded away.
-5. **Batch drift.** Identical criteria have swung up to 2× between batches (1/12 vs 5/12),
-   which is why every design arm is interleaved inside one batch.
-6. **The defensive side is mostly untouched.** Verifiable-clean certification (measuring a
+   convention* applied to traces, not a permission the host refuses; the real permission is
+   built and registered (2026-09-28-role-separation-prereg.md) but **unrun on the model
+   where it means something**. It was run on deepseek-chat and turned out to be
+   *untestable there*: across all 16 runs of that model not one out-of-role call was ever
+   attempted (the token never reaches the sink, the credential is read twice, the rule is
+   armed four times — each by S7, in role), so the permission had nothing to refuse. The
+   verdict script had been printing PASS for two criteria it could not test; it now reports
+   N/A with the reason (defect 23). D-1 must run on MiniMax, where out-of-role calls are the
+   norm — blocked on the plan cap.
+4. **E-1 (redundant delivery) is registered and implemented, not run.** The treatment
+   (the same bytes in two or three seats) is in the code and verified offline — five
+   variants plant the payload in exactly the seats they name — but its mechanism premise,
+   P-E1.1, needs a live probe: more *inputs* do not automatically mean more *surviving*
+   carriers, because the forced cleanup keeps only what the review session produced.
+5. **A control floor that is model-dependent, and a criterion floor.** The control arm is
+   not perfectly zero across all payloads (`only-stage1` C0 stage 1 = 1/12), and on
+   `deepseek-chat` it is 10/12 — see §2.5. The stage-2 criterion has its own floor
+   (`only-stage1` loose 1/12, strict 0/12). All of it is reported rather than rounded away;
+   the cross-model arm is what turned "a ~2% tail" into "a model-dependent quantity".
+6. **Batch drift.** Identical criteria have swung up to 2× between batches (1/12 vs 5/12),
+   which is why every design arm is interleaved inside one batch — and why the cross-model
+   contrast above is labelled provisional until its same-time reference batch runs.
+7. **The defensive side is mostly untouched.** Verifiable-clean certification (measuring a
    cleaner's false-negative rate under paraphrase), provenance/taint labels that stop the
    next session from acting, and a content monitor with a measured false-positive rate are
    all designed and not built. See
