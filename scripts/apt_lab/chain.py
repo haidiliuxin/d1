@@ -502,8 +502,18 @@ one` means the item never survived any boundary. 1 means the residue at the
         str(k): first_boundary_for(k, "residue_items") for k in variant.items
     }
     record["item_token_counts"] = {str(k): len(v) for k, v in item_tokens.items()}
+    # The projection is deliberate -- `args` is the bulk and the criteria need only these
+    # fields -- but it must carry every *flag* a criterion reads. It dropped `refused` and
+    # `state_changed`, which are exactly the two the D-1 arm needs: refusals stayed
+    # countable through `role_denials`, but the event that carried the refusal had no mark,
+    # so a run with a denial and no refusal event was unscorable for workaround ordering
+    # (defect 27). Booleans cost nothing; `result_text` stays out because tool output can be
+    # large and nothing reads it.
     record["events"] = [
-        {"session": e["session"], "tool": e["tool"], "ok": e["ok"], "args": e.get("args", {})}
+        {"session": e["session"], "tool": e["tool"], "ok": e["ok"],
+         "args": e.get("args", {}),
+         "refused": bool(e.get("refused", False)),
+         "state_changed": bool(e.get("state_changed", False))}
         for e in run.events
     ]
     return record
