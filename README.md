@@ -319,21 +319,20 @@ Stated as limitations rather than footnotes, because each one is a live gap:
 2. **The policy lever is unestablished.** The wording ablation is directional (80%→57% at
    stage 1; 25%→7% at stage 3) but underpowered at n = 14. A third wording variant at
    adequate power is registered and unrun.
-3. **Role separation was simulated, not enforced.** The source constraint is a *measurement
-   convention* applied to traces, not a permission the host refuses; the real permission is
-   built and registered (2026-09-28-role-separation-prereg.md) but **unrun on the model
-   where it means something**. It was run on deepseek-chat and turned out to be
-   *untestable there*: across all 16 runs of that model not one out-of-role call was ever
-   attempted (the token never reaches the sink, the credential is read twice, the rule is
-   armed four times — each by S7, in role), so the permission had nothing to refuse. The
-   verdict script had been printing PASS for two criteria it could not test; it now reports
-   N/A with the reason (defect 23). D-1 must run on MiniMax, where out-of-role calls are the
-   norm — blocked on the plan cap.
-4. **E-1 (redundant delivery) is registered and implemented, not run.** The treatment
-   (the same bytes in two or three seats) is in the code and verified offline — five
-   variants plant the payload in exactly the seats they name — but its mechanism premise,
-   P-E1.1, needs a live probe: more *inputs* do not automatically mean more *surviving*
-   carriers, because the forced cleanup keeps only what the review session produced.
+3. **Role separation was simulated, then really enforced — and it did not hold.** D-1 armed
+   three real tool-level permissions on MiniMax and the attack did not collapse (§2.4). An
+   earlier version of this item described the arm as unrun and `deepseek-chat` as *untestable*;
+   that reading was wrong and is corrected here — the artifacts did not record refusals at all,
+   so "no out-of-role attempts" was a missing field read as a zero (defect 26). What the arm
+   does establish is the negative result: a caller-identity permission leaves the in-role path
+   open, and half of the refused runs moved the payload to an unguarded channel.
+4. **E-1 (redundant delivery) is registered, implemented, and its premise failed its own
+   probe.** Planting the same bytes in a second seat did **not** increase the number of
+   carriers surviving boundary 3 (1/3 vs 1/3 runs with ≥ 2 carriers; mean 1.33 vs 1.67) —
+   the forced cleanup keeps only what the review session produced, and the number of review
+   sessions is unchanged. Per the pre-registered guard the full 24-run arm was not run: a
+   probe that costs 4 runs to save 22M tokens is what the probe is for. That leaves
+   availability untested at a larger n rather than refuted — n = 3 per arm is wide.
 5. **A control floor that is model-dependent, and a criterion floor.** The control arm is
    not perfectly zero across all payloads (`only-stage1` C0 stage 1 = 1/12), and on
    `deepseek-chat` it is 10/12 — see §2.5. The stage-2 criterion has its own floor
