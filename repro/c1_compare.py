@@ -36,9 +36,35 @@ import chain_stats as cs  # noqa: E402
 import two_lenses as tl  # noqa: E402
 
 
-def profile(model: str) -> dict:
-    treated = c1.arm_runs(model, "R-forced")
-    control = c1.arm_runs(model, "C0-forced")
+def runs_in_batch(batch: str, model: str, arm: str) -> list[dict]:
+    """One arm's runs from a single named batch, for the same-day contrast."""
+
+    directory = cs.ROOT / batch
+    if not directory.is_dir():
+        return []
+    return [
+        j for _stem, j, _v, _p in cs.runs_of(
+            directory, variant="full", policy="quote-as-assessed", model=model,
+            roles=False)
+        if j.get("arm") == arm
+    ]
+
+
+def profile(model: str, only_batch: str | None = None) -> dict:
+    """Every rate for one model, optionally restricted to a single batch.
+
+    `only_batch` is what turns "the comparator pool" into "the same-day reference batch".
+    Without it the contrast is drawn against a pool that spans several days, which is why
+    the script labels it provisional; with it, the two arms being compared were run hours
+    apart, and the magnitude stops being a between-batch artefact.
+    """
+
+    if only_batch is None:
+        treated = c1.arm_runs(model, "R-forced")
+        control = c1.arm_runs(model, "C0-forced")
+    else:
+        treated = runs_in_batch(only_batch, model, "R-forced")
+        control = runs_in_batch(only_batch, model, "C0-forced")
     t_inst = [j for j in treated if cs.rescore(j) is not None]
     c_inst = [j for j in control if cs.rescore(j) is not None]
 
@@ -129,17 +155,27 @@ def main() -> int:
                         default=["MiniMax-M2.7", "deepseek-chat"])
     parser.add_argument("--same-time-reference", action="store_true",
                         help="assert that the comparator batches are same-time")
+    parser.add_argument("--reference-batch", default=None,
+                        help="a batch name; the first model's profile is restricted to it, "
+                             "so the contrast is against a same-day reference rather than a "
+                             "multi-day pool")
     args = parser.parse_args()
 
-    profiles = [profile(m) for m in args.models]
+    profiles = [profile(args.models[0], only_batch=args.reference_batch),
+                *[profile(m) for m in args.models[1:]]]
 
     print("=" * 90)
     print("C-1 CROSS-MODEL CONTRAST -- every arm rate beside its own control floor")
     print("=" * 90)
+    if args.reference_batch:
+        print(f"\n  comparator restricted to batch {args.reference_batch} "
+              f"(same-day reference: {profiles[0]['n']} R / {profiles[0]['n_control']} C0)")
     if not args.same_time_reference:
-        print("\n  ** PROVISIONAL **  no same-time reference batch for the comparator, and")
-        print("  the `full` arm swings by up to 2x between batches: read the direction, not")
-        print("  the magnitude (pre-registration §2, amendment 1 §9.2).")
+        print("\n  ** PROVISIONAL **  the comparator is a pool rather than a same-time")
+        print("  reference batch in the strict sense, and the `full` arm swings by up to 2x")
+        print("  between batches: read the direction, not the magnitude.")
+        print("  (Pre-registration §2; amendment 1 §9.2; the reference batch landed on")
+        print("  2026-09-29, one day after the second model's arm.)")
 
     header = f"\n  {'quantity':<26}" + "".join(f"{p['model']:>24}" for p in profiles)
     print(header)
