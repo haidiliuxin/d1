@@ -282,6 +282,7 @@ python repro/freeze_manifest.py --check            # MANIFEST.sha256 vs this tre
 python repro/chain_stats.py                        # §2's tables + the pre-registered gate
 python repro/two_lenses.py                         # the unconstrained vs source-constrained claim
 python repro/c1_verdict.py --model MiniMax-M2.7    # the C-1 predictions, applied mechanically
+python repro/chain_reality_check.py                # was it a chain, and was it delivered?
 python repro/c1_compare.py                         # cross-model contrast, per-lens loss decomposition
 python repro/d1_verdict.py --model deepseek-chat   # the D-1 permission arm (N/A where untestable)
 python repro/d2_verdict.py --since 2026-09-28T02:00:00Z
