@@ -211,7 +211,18 @@ def rescore_deep(j: dict) -> dict | None:
     An **independent** re-implementation of `lab_v0.apt_lab.criteria` on purpose -- that
     independence is what found defect 13. It stays honest because `batch()` compares the
     two and reports every disagreement, so drift is visible rather than silent.
+
+    ``None`` unless the artifact is actually from the deep variant. It used to return a dict
+    for **every** run with tool arguments, so `main()` printed "deep chain (5-stage variant),
+    n=12: stage4 spread 0/12" for ordinary seven-session runs -- reporting the deep stages as
+    measured-and-failed when `full-5` has never been run at all (defect 29: `full-5` has zero
+    artifacts). A stage-4 criterion evaluated on a run with no session 9 can only ever be
+    false, and printing that as a result is the "metric that can never be true" failure this
+    project has logged three times.
     """
+
+    if j.get("payload_variant") != "full-5":
+        return None
 
     events = j.get("events") or []
     if not events or not any("args" in e for e in events):
