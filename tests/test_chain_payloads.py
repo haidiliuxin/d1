@@ -208,10 +208,33 @@ def test_every_variant_is_a_distinct_treatment():
     assert set(PAYLOAD_VARIANTS) == {
         "full", "next-hop", "only-stage1", "full-5", "full-d2", "full-d4",
         "full-r2", "full-r3",
+        "full-seat-drive", "full-seat-rag", "full-seat-memory",
     }
     frozen = PAYLOAD_VARIANTS["full"].injected
     sharing = {name for name, v in PAYLOAD_VARIANTS.items() if v.injected == frozen}
-    assert sharing == {"full", "full-r2", "full-r3"}, sharing
+    assert sharing == {"full", "full-r2", "full-r3",
+                       "full-seat-drive", "full-seat-rag", "full-seat-memory"}, sharing
+
+
+def test_the_seat_arms_change_only_the_seat():
+    """S-1's treatment is *where* the injection sits, so the bytes must be identical.
+
+    A seat variant that also reworded the payload could not attribute a difference to the
+    seat. Same guard as E-1's, for the same reason -- and the reason both axes ride on
+    `PayloadVariant.seats`: the interleave machinery already alternates variants, so a seat
+    comparison needs no new axis and no between-batch drift.
+    """
+
+    frozen = PAYLOAD_VARIANTS["full"]
+    for name, seat in (("full-seat-drive", ("drive",)),
+                       ("full-seat-rag", ("rag",)),
+                       ("full-seat-memory", ("memory",))):
+        variant = PAYLOAD_VARIANTS[name]
+        assert variant.injected == frozen.injected
+        assert variant.payload_bytes == frozen.payload_bytes
+        assert variant.items == frozen.items
+        assert variant.anchors == frozen.anchors
+        assert variant.seats == seat
 
 
 def test_the_redundancy_arms_differ_from_full_only_in_seats():
