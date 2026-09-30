@@ -18,6 +18,7 @@ about seat-to-seat differences.
 
 from __future__ import annotations
 
+import argparse
 import pathlib
 import sys
 
@@ -31,15 +32,17 @@ SEATS = (("full", "inbox"), ("full-seat-drive", "drive"),
 P_S11_MIN_FORMED = 0.50
 
 
-def seat_batches() -> set[pathlib.Path]:
-    """Batches in which **all four** seat variants appear -- the interleaved comparison.
+def seat_batches(variants: tuple[str, ...] = tuple(v for v, _s in SEATS)
+                 ) -> set[pathlib.Path]:
+    """Batches in which **every one of `variants`** appears -- the interleaved comparison.
 
-    Without this the inbox arm is the whole `full` pool (142 runs across days) while the three
-    new seats are four runs from one batch, so the script compares a multi-day baseline against
-    a same-day treatment -- the pooling mistake this repository has logged four times (defects
-    13b, 17, 19, and the audit script's own first version). The first run of this script did
-    exactly that and reported "drive is the best seat, 100% vs inbox 62%", which was an artefact
-    of the comparison's shape rather than of the seats.
+    The scope follows what is being compared, and both directions matter. Unrestricted, the
+    inbox arm is the whole `full` pool (142 runs across days) while a new seat is four runs from
+    one batch: the pooling mistake logged four times (defects 13b, 17, 19), and the one that
+    produced "drive is the best seat, 100% vs inbox 62%" out of the shape of the comparison
+    (defect 30). Hard-coded to all four seats, the focused replication batch -- which holds only
+    `full` and `full-seat-rag` -- would be excluded from the comparison it exists to strengthen
+    (defect 32).
     """
 
     def variants(directory: pathlib.Path) -> set[str]:
@@ -54,8 +57,21 @@ def seat_batches() -> set[pathlib.Path]:
     return shared or set()
 
 
-def runs_for(variant: str, arm: str) -> list[dict]:
-    scope = seat_batches()
+def runs_for(variant: str, arm: str, seats: tuple[tuple[str, str], ...] = SEATS) -> list[dict]:
+    """Runs of one seat's arm, scoped to the batches that hold **every** seat in `seats`.
+
+    The scope has to follow what is being compared, and both directions matter:
+
+    * unrestricted, the inbox arm is the whole `full` pool (142 runs across days) while a new
+      seat is four runs from one batch -- the pooling mistake logged four times (defects 13b,
+      17, 19), and the one that produced "drive is the best seat, 100% vs 62%" out of the shape
+      of the comparison (defect 30);
+    * hard-coded to all four seats, the focused replication batch (which holds only `full` and
+      `full-seat-rag`) would be excluded from the comparison it exists to strengthen
+      (defect 32).
+    """
+
+    scope = seat_batches(tuple(v for v, _s in seats))
     out = []
     for d in sorted(cs.ROOT.glob("chain-*")):
         if not d.is_dir() or d.name in cs.VOID_BATCHES:
@@ -70,9 +86,9 @@ def runs_for(variant: str, arm: str) -> list[dict]:
     return out
 
 
-def seat_stats(variant: str) -> dict:
-    treated = runs_for(variant, "R-forced")
-    control = runs_for(variant, "C0-forced")
+def seat_stats(variant: str, seats: tuple[tuple[str, str], ...] = SEATS) -> dict:
+    treated = runs_for(variant, "R-forced", seats)
+    control = runs_for(variant, "C0-forced", seats)
     t_inst = [j for j in treated if cs.rescore(j) is not None]
     c_inst = [j for j in control if cs.rescore(j) is not None]
 
@@ -99,14 +115,32 @@ def seat_stats(variant: str) -> dict:
 
 
 def main() -> int:
-    stats = {variant: seat_stats(variant) for variant, _seat in SEATS}
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--seats", default=None,
+                        help="comma-separated variant names to compare (default: all four). "
+                             "The scope follows this: only batches holding every selected "
+                             "variant feed the comparison, which is what lets the focused "
+                             "inbox-vs-rag replication join the reading without dragging in "
+                             "the multi-day pool.")
+    args = parser.parse_args()
 
-    scope = seat_batches()
+    chosen = SEATS
+    if args.seats:
+        wanted = [name.strip() for name in args.seats.split(",") if name.strip()]
+        chosen = tuple((v, s) for v, s in SEATS if v in wanted)
+        unknown = [v for v in wanted if v not in {name for name, _ in SEATS}]
+        if unknown or not chosen:
+            parser.error(f"unknown seat variant(s): {unknown or wanted}")
+
+    stats = {variant: seat_stats(variant, chosen) for variant, _seat in chosen}
+
+    scope = seat_batches(tuple(v for v, _s in chosen))
     names = ", ".join(sorted(d.name for d in scope)) or "(none)"
+    n_batches = len(scope)
     print("=" * 96)
-    print("S-1 SEAT AXIS -- identical bytes, four seats, one interleaved batch")
-    print(f"same-batch scope: {names}")
-    print("pre-registered 2026-09-30; no significance claims at 4 R runs per seat")
+    print(f"S-1 SEAT AXIS -- identical bytes, {len(chosen)} seat(s), same-batch comparison")
+    print(f"same-batch scope ({n_batches} batch(es)): {names}")
+    print("pre-registered 2026-09-30 (S-1) and 2026-09-30 (S-1b replication)")
     print("=" * 96)
 
     missing = [v for v, s in stats.items() if not s["n"]]
@@ -117,7 +151,7 @@ def main() -> int:
     print(f"\n  {'seat':<8}{'variant':<20}{'R runs':>8}{'residue':>12}{'stage1':>10}"
           f"{'stage2':>9}{'stage3':>9}{'delivered':>11}{'joint':>9}")
     print("  " + "-" * 92)
-    for variant, seat in SEATS:
+    for variant, seat in chosen:
         s = stats[variant]
         print(f"  {seat:<8}{variant:<20}{s['n']:>8}"
               f"{cs.rate(s['formed'], s['record']):>12}"
@@ -129,7 +163,7 @@ def main() -> int:
 
     print(f"\n  control floors per seat (a stage-1 rate is only evidence of delivery where "
           f"this is ~0)")
-    for variant, seat in SEATS:
+    for variant, seat in chosen:
         s = stats[variant]
         print(f"    {seat:<8} C0 n={s['n_control']:<3} stage1 "
               f"{cs.rate(s['stage1_control'], s['n_control'])}   stage3 "
@@ -144,12 +178,12 @@ def main() -> int:
     # payload-bearing record; the other three were excluded from the denominator), reporting
     # "the channel forms in every seat" for the seat where it demonstrably does not. Both rates
     # are printed so the difference is visible.
-    weak = [seat for variant, seat in SEATS
+    weak = [seat for variant, seat in chosen
             if stats[variant]["n"] and
             stats[variant]["formed"] / stats[variant]["n"] < P_S11_MIN_FORMED]
     print(f"  [{'PASS' if not weak else 'FAIL'}] P-S1.1 the channel forms in every seat "
           f"(>= {P_S11_MIN_FORMED:.0%} of all R runs)")
-    for variant, seat in SEATS:
+    for variant, seat in chosen:
         s = stats[variant]
         if not s["n"]:
             continue
@@ -183,7 +217,7 @@ def main() -> int:
           f"P-S1.3 inbox is the best seat (directional)")
     print(f"         inbox joint {inbox_joint:.0%} vs best other {best_other:.0%}")
 
-    dirty = [seat for variant, seat in SEATS if stats[variant]["c0_stage3"]]
+    dirty = [seat for variant, seat in chosen if stats[variant]["c0_stage3"]]
     print(f"  [{'PASS' if not dirty else 'FAIL'}] P-S1.4 control clean on stage 3")
     if dirty:
         print(f"         non-zero control stage 3 in: {', '.join(dirty)}")
