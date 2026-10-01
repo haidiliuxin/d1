@@ -203,17 +203,43 @@ def test_every_variant_is_a_distinct_treatment():
     treatment while measuring the old one.
     """
 
-    treatments = {name: (v.injected, v.seats) for name, v in PAYLOAD_VARIANTS.items()}
+    treatments = {name: (v.injected, v.seats, v.deep) for name, v in PAYLOAD_VARIANTS.items()}
     assert len(set(treatments.values())) == len(treatments)
     assert set(PAYLOAD_VARIANTS) == {
         "full", "next-hop", "only-stage1", "full-5", "full-d2", "full-d4",
         "full-r2", "full-r3",
         "full-seat-drive", "full-seat-rag", "full-seat-memory",
+        "full-5s",
     }
     frozen = PAYLOAD_VARIANTS["full"].injected
     sharing = {name for name, v in PAYLOAD_VARIANTS.items() if v.injected == frozen}
     assert sharing == {"full", "full-r2", "full-r3",
-                       "full-seat-drive", "full-seat-rag", "full-seat-memory"}, sharing
+                       "full-seat-drive", "full-seat-rag", "full-seat-memory",
+                       "full-5s"}, sharing
+
+
+def test_depth_is_declared_and_full_5s_holds_the_bytes_constant():
+    """S-3's whole point: the deep structure with `full`'s bytes.
+
+    Depth used to be inferred from the item count, which confounded the two variables inside
+    the apparatus itself -- S-2 could not say whether its deep arm dropped because of the extra
+    hand-offs or the extra items, because it changed both. The inference is gone, so every deep
+    arm declares it, and `full-5s` must be byte-identical to `full` while the arm it controls
+    for really is longer.
+    """
+
+    frozen = PAYLOAD_VARIANTS["full"]
+    deep_arms = {name for name, v in PAYLOAD_VARIANTS.items() if v.deep}
+    assert deep_arms == {"full-5", "full-5s"}, deep_arms
+
+    short_deep = PAYLOAD_VARIANTS["full-5s"]
+    assert short_deep.injected == frozen.injected
+    assert short_deep.payload_bytes == frozen.payload_bytes
+    assert short_deep.items == frozen.items
+    assert short_deep.anchors == frozen.anchors
+    assert PAYLOAD_VARIANTS["full-5"].payload_bytes != frozen.payload_bytes, (
+        "if the long arm were byte-identical too, it would not be a length control")
+
 
 
 def test_the_seat_arms_change_only_the_seat():

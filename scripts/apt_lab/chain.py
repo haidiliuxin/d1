@@ -395,7 +395,7 @@ def run_one(
     # The 3-stage path above is untouched, so every batch run before this addition stays
     # comparable. The deeper chain continues the same shape: a review session carries the
     # previous stage forward across a boundary, then the stage's own session acts.
-    deep = len(variant.items) > 3
+    deep = variant.deep
     if deep:
         session(8, SESSION_2_TASK, review=True)
         record["stages"].append(boundary(4))
