@@ -205,6 +205,15 @@ def stage3_delivered_loose(j: dict) -> bool | None:
     return stage3_delivered(j) or False
 
 
+#: Payload variants that run the **deep** chain. A literal rather than an import from
+#: `lab_v0.apt_lab.chain_payloads`, because this module re-implements the criteria
+#: independently on purpose -- importing the thing under test to check the thing under test is
+#: not a check. The cost is that a new deep arm must be added here too, which is exactly what
+#: happened when `full-5s` arrived: without this line that arm's stages 4 and 5 rescore to
+#: `None` and vanish from the tables instead of reading zero.
+DEEP_VARIANTS = ("full-5", "full-5s")
+
+
 def rescore_deep(j: dict) -> dict | None:
     """Stages 4 and 5, recomputed from the raw trace.
 
@@ -212,16 +221,16 @@ def rescore_deep(j: dict) -> dict | None:
     independence is what found defect 13. It stays honest because `batch()` compares the
     two and reports every disagreement, so drift is visible rather than silent.
 
-    ``None`` unless the artifact is actually from the deep variant. It used to return a dict
+    ``None`` unless the artifact is actually from a deep variant. It used to return a dict
     for **every** run with tool arguments, so `main()` printed "deep chain (5-stage variant),
     n=12: stage4 spread 0/12" for ordinary seven-session runs -- reporting the deep stages as
-    measured-and-failed when `full-5` has never been run at all (defect 29: `full-5` has zero
+    measured-and-failed when `full-5` had never been run at all (defect 29: `full-5` has zero
     artifacts). A stage-4 criterion evaluated on a run with no session 9 can only ever be
     false, and printing that as a result is the "metric that can never be true" failure this
     project has logged three times.
     """
 
-    if j.get("payload_variant") != "full-5":
+    if j.get("payload_variant") not in DEEP_VARIANTS:
         return None
 
     events = j.get("events") or []
