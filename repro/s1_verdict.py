@@ -55,7 +55,7 @@ def seat_batches(variants: tuple[str, ...] = tuple(v for v, _s in SEATS)
     # batch (which holds two of the four) was silently excluded from the comparison it exists to
     # strengthen, and the merged reading was byte-identical to the unreplicated one. Caught by
     # the merged reading being *the same* as before the batch ran, which is the one outcome that
-    # should never happen (defect 33).
+    # should never happen (defect 34).
     for variant in variants:
         dirs = {d for d in cs.ROOT.glob("chain-*")
                 if d.is_dir() and d.name not in cs.VOID_BATCHES

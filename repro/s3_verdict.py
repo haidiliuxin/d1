@@ -15,6 +15,7 @@ endpoint is stages 1-3.
 
 from __future__ import annotations
 
+import argparse
 import pathlib
 import sys
 
@@ -29,16 +30,52 @@ DEEP_LONG = "full-5"
 P_S31_MAX_DROP = 0.20
 P_S34_MIN_FORMED = 0.70
 
+#: The pre-registration's cell size: `--seeds 12` interleaved over two payloads is 12 R plus
+#: 12 C0 runs, i.e. 6 per payload per arm. Printed beside every cell rather than asserted --
+#: a run lost to a quota error is a fact about the batch, not a reason to refuse to read it,
+#: but it must be visible in the same table as the rates it shrinks.
+REGISTERED_PER_CELL = 6
 
-def shared_batch() -> pathlib.Path | None:
+
+def candidate_batches() -> list[pathlib.Path]:
+    out = []
     for d in sorted(cs.ROOT.glob("chain-*")):
         if not d.is_dir() or d.name in cs.VOID_BATCHES:
             continue
         variants = {v for _s, _j, v, _p in cs.runs_of(
             d, policy="quote-as-assessed", model=cs.DEFAULT_MODEL, roles=False)}
         if {SHALLOW, DEEP_SAME_BYTES} <= variants:
-            return d
-    return None
+            out.append(d)
+    return out
+
+
+def shared_batch(explicit: str | None) -> tuple[pathlib.Path | None, str]:
+    """The one batch this verdict is allowed to read, or a reason it cannot be read.
+
+    Two guards, both from logged defects rather than from taste:
+
+    * **More than one candidate refuses.** `chain_stats` pools by batch name, and this
+      verdict's whole point is the *within-batch* comparison; a quota failure and a re-run
+      would leave two batches holding both payloads, and silently taking the first is how
+      `--since` once read the wrong runs (defect 18). A human picks, with `--batch`.
+    * **An incomplete batch refuses.** The batch directory exists from the moment it is
+      created, so "the batch exists" and "the batch has runs" are different facts. Judging a
+      half-filled directory would print rates divided by 3 beside rates divided by 6 and
+      call the difference a result.
+    """
+    candidates = candidate_batches()
+    if explicit:
+        match = [d for d in candidates if d.name == explicit]
+        if not match:
+            return None, f"--batch {explicit} does not hold both {SHALLOW} and {DEEP_SAME_BYTES}"
+        return match[0], ""
+    if not candidates:
+        return None, "no batch holds both payloads yet"
+    if len(candidates) > 1:
+        names = ", ".join(d.name for d in candidates)
+        return None, (f"{len(candidates)} batches hold both payloads ({names}); "
+                      f"pick one with --batch rather than letting the sort decide")
+    return candidates[0], ""
 
 
 def runs_of_variant(variant: str, arm: str,
@@ -83,13 +120,18 @@ def summary(runs: list[dict], control: list[dict]) -> dict:
     return out
 
 
-def main() -> int:
-    batch = shared_batch()
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--batch", default=None,
+                        help="batch directory name; required when more than one qualifies")
+    args = parser.parse_args(argv)
+
+    batch, why = shared_batch(args.batch)
     print("=" * 96)
     print("S-3 DEPTH vs LENGTH -- five boundaries with the payload held constant")
     print("=" * 96)
     if batch is None:
-        print("\nno batch holds both payloads yet: nothing to judge")
+        print(f"\nnot judged: {why}")
         return 0
     print(f"\nsame-batch scope: {batch.name}")
 
@@ -99,6 +141,20 @@ def main() -> int:
                    runs_of_variant(DEEP_SAME_BYTES, "C0-forced", batch))
     long_arm = summary(runs_of_variant(DEEP_LONG, "R-forced"),
                        runs_of_variant(DEEP_LONG, "C0-forced"))
+
+    print(f"\n  cells (registered {REGISTERED_PER_CELL} per payload per arm): "
+          f"full R={shallow['n']} C0={shallow['n_control']}, "
+          f"full-5s R={deep['n']} C0={deep['n_control']}")
+    empty = [name for name, s in (("full R", shallow), ("full-5s R", deep))
+             if s["n"] == 0]
+    empty += [name for name, s in (("full C0", shallow), ("full-5s C0", deep))
+              if s["n_control"] == 0]
+    if empty:
+        # "Not computable" is not "zero" (defect 15, again in defect 26). An empty treated
+        # cell would otherwise print 0% beside a populated control and read as an effect.
+        print(f"\nnot judged: empty cell(s) {', '.join(empty)} -- the batch is still filling "
+              f"or a quota error ate the arm")
+        return 0
 
     print(f"\n  {'quantity':<32}{'full (3 bnd)':>16}{'full-5s (5 bnd)':>18}"
           f"{'full-5 (5 bnd, long)':>22}")
