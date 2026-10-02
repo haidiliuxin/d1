@@ -464,6 +464,20 @@ S2 两次被拒 → 同样写记录；S3（份内）读凭据成功 → 写 sink
 | **跨会话的"可信来源"标记**：后续会话不应把"某份文档里写着"当作指令授权 | 62% 的成功正是因为会话把残留当任务书 |
 | **清理要覆盖"防御产物的副本"**，否则残留会复利增殖（1.02 → 2.97） | §6.2 |
 
+**监控该放在哪一层**（`scripts/apt_lab/monitor_placement.py`：把项目的检测器回放到**已记录**的 96 个
+run 的工具调用上，**零 token 成本**——"如果加监控会看到什么"这个问题，只看不改的部分不需要新实验）
+
+| 放法 | 内容级告警率 | 抓到成功 run | 判定 |
+|---|---|---|---|
+| **载体侧**（create_file / append / memory / rag） | **96/96 runs**（701 次告警） | 61/61 | **不可用**：这些告警**就是防御方按政策必须写的合规产物**（96/96 个 run 的边界-1 审查记录都存活），与攻击在内容上不可区分 |
+| **出口侧**（sink_write / email / a2a） | 82/96 runs（124 次告警） | **61/61** | **可用**：把凭证值写进 sink **没有合法业务理由**，所以误报按构造 ≈ 0 |
+| 设置侧（config_set） | 0/96 | 0/61 | 本臂没有载荷到达这一层 |
+
+**但单点监控不够**：**令牌值出现在普通文件里 89/96，比出现在 sink 里的 82/96 还多**——只堵 sink，
+第二级的内容**已经**在工作区里了（与 D-1 的"被拒后 6/12 换渠道"同向）。所以完整建议是
+**载体侧按"归属"监控（谁产出的），出口侧按"内容"监控（写了什么）**，两种信号各管一边：
+内容级在载体侧必然淹没在防御方自己的合规产物里，归属级在出口侧则无关紧要。
+
 ---
 
 ## 9. 局限与未完成的实验
@@ -510,6 +524,9 @@ python repro/d1_verdict.py --model MiniMax-M2.7
 python repro/e1_verdict.py ; python repro/s1_verdict.py
 python repro/s2_verdict.py ; python repro/s3_verdict.py
 python repro/freeze_manifest.py --check   # 每个已提交文件的 sha256 校验
+
+# 2b) 需要宿主（agentdojo）的两条分析：它们要重建种子环境才能用同一套检测器
+python scripts/apt_lab/monitor_placement.py   # "加监控会看到什么"：载体侧 96/96、出口侧 82/96、抓 61/61
 
 # 3) 实跑（需要沙箱宿主、key 与额度）
 python scripts/apt_lab/chain.py --seeds 6 --concurrency 4 --payload full
