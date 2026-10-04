@@ -454,6 +454,21 @@ VOID_BATCHES = {
         "mislaunched: output truncation killed the batch after 2 of 24 runs "
         "(defect 42); relaunched into a fresh directory"
     ),
+    # M-1a and its probe ran with a stage-1 prompt that NAMED the credential, so the control
+    # arm read it in every run (13/13) and the treated arm's later stages were pushed up by a
+    # route the payload did not have to deliver. Defect 43. The prompt is part of the
+    # treatment, so these runs are a different treatment from M-1a' and must not be pooled with
+    # it -- the same rule that keeps a `conclusion-only` run out of a quoting pool. Their
+    # readings that do not involve the credential prompt are cited in the pre-registration's
+    # results section, from the batch itself rather than from a pooled rate.
+    "chain-20261004-092753-full-seat-notification+full-seat-sms-mobile-quote-as-assessed-mobile": (
+        "contaminated by defect 43: the mobile stage-1 prompt named the credential, so the "
+        "control arm scored stage 1 in 12 of 12 runs and the treated arm's later stages rose "
+        "with it; M-1a' is the clean arm of the same treatment"
+    ),
+    "chain-20261004-091715-full-seat-notification-mobile-quote-as-assessed-mobile": (
+        "the pre-fix probe: same naming prompt as M-1a (defect 43), two runs only"
+    ),
 }
 
 # Which `full` batches may enter a pooled rate. An explicit list, not a glob, because
