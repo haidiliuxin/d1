@@ -483,6 +483,7 @@ def runs_of(
     policy: str | None = None,
     model: str | None = None,
     roles: bool | None = None,
+    surface: str | None = "workspace",
 ) -> list[tuple[str, dict, str, str]]:
     """(stem, artifact, variant, policy) for every run, classified **per run**.
 
@@ -504,6 +505,12 @@ def runs_of(
     with no ``roles`` field is the published treatment (no permission enforced); a
     ``roles=True`` run carries a **different** treatment and must not reach a pool that
     quotes published numbers. Callers that want every run pass ``roles=None``.
+
+    ``surface`` is the fourth, for M-1's carrier surface. It defaults to ``"workspace"``
+    rather than to ``None``, and that default is deliberate: every published number is a
+    workspace number, the field is absent from all 571 existing artifacts, and defaulting to
+    "any surface" would let a phone run into a pool that quotes them. A caller that wants both
+    surfaces passes ``surface=None`` and says so.
     """
 
     out: list[tuple[str, dict, str, str]] = []
@@ -516,8 +523,10 @@ def runs_of(
         p = j.get("policy", "quote-as-assessed")
         m = j.get("model", DEFAULT_MODEL)
         r = bool(j.get("roles", False))
+        s = j.get("surface", "workspace")
         if (variant is None or v == variant) and (policy is None or p == policy) \
-                and (model is None or m == model) and (roles is None or r is roles):
+                and (model is None or m == model) and (roles is None or r is roles) \
+                and (surface is None or s == surface):
             out.append((f.stem, j, v, p))
     return out
 
