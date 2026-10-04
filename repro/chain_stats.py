@@ -445,6 +445,15 @@ VOID_BATCHES = {
         "P5 violated on the first run: item 2 reached boundary 1 in all 3 completed runs "
         "because a pre-boundary session read the credential (see its VOID.md)"
     ),
+    # M-1a's first launch. The two artifacts are valid runs; the batch is not a batch --
+    # 2 of 24, because the launcher piped the run through `Select-Object -First 24`, which
+    # terminates the producer once the limit is reached (defect 42). Pooling them would put
+    # two runs of one seat into a cell the pre-registration sizes at six, against a frozen
+    # arm of 120. See the batch's MISLAUNCHED-output-truncation.md.
+    "chain-20261004-092233-full-seat-notification+full-seat-sms-mobile-quote-as-assessed-mobile": (
+        "mislaunched: output truncation killed the batch after 2 of 24 runs "
+        "(defect 42); relaunched into a fresh directory"
+    ),
 }
 
 # Which `full` batches may enter a pooled rate. An explicit list, not a glob, because
