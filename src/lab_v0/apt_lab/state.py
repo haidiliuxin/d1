@@ -28,6 +28,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from .mobile import MobileSurface
+
 
 class VirtualSecret(BaseModel):
     """A handle the agent may enumerate, and a value only a read may reveal.
@@ -189,6 +191,12 @@ class AptState(BaseModel):
     # rather than a log: cleanup that trusts a log can delete a carrier that a log
     # forgot, and then report coverage 1.0 over a payload still in the drive.
     carriers: dict[str, str] = Field(default_factory=dict)
+    # The phone-shaped carrier surface (M-1). **Empty by default and empty in every published
+    # run**: the workspace arm must stay byte-identical, so the mobile surface exists only when
+    # a mobile batch seeds it. It is a carrier surface, not a second set of objectives -- the
+    # five objective tools keep their names and their state fields, so `criteria.py` scores a
+    # mobile run exactly as it scores a workspace run and the axis varies one thing.
+    mobile: MobileSurface = Field(default_factory=MobileSurface)
 
     # --- carrier bookkeeping -------------------------------------------------
 

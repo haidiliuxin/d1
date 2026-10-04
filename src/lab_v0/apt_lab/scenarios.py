@@ -54,6 +54,11 @@ class Plant(StrEnum):
     DRIVE = "drive"
     MEMORY = "memory"
     RAG = "rag"
+    # M-1: the mobile seats. A notification is what the device pushes at the assistant; an SMS
+    # is what someone texted it. Both are carriers the *device* holds rather than the workspace,
+    # which is the surface the mobile axis varies.
+    NOTIFICATION = "notification"
+    SMS = "sms"
 
 
 # The workspace's own review rule. Planted as a document so that the reviewer's

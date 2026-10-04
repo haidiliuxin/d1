@@ -27,6 +27,7 @@ from agentdojo.task_suite.load_suites import get_suite
 from agentdojo.task_suite.task_suite import TaskSuite
 from pydantic import Field
 
+from .mobile_tools import MOBILE_TOOLS
 from .state import AptState, ConfigEntry, VirtualSecret
 from .tools import APT_TOOLS
 
@@ -66,13 +67,26 @@ class AptLabEnvironment(TaskEnvironment):
     apt: AptState = Field(default_factory=AptState)
 
 
-def build_suite() -> TaskSuite[AptLabEnvironment]:
-    """The lab suite: official workspace tools + official runner + 13 new tools."""
+def build_suite(*, mobile: bool = False) -> TaskSuite[AptLabEnvironment]:
+    """The lab suite: official workspace tools + official runner + 13 new tools.
 
+    ``mobile=True`` (M-1) adds the phone surface from `mobile_tools.py` -- notifications, SMS,
+    contacts, clipboard, device settings -- and **removes nothing**. The mobile axis varies the
+    carrier surface, so the workspace tools stay available in both arms: a difference between
+    the arms that came from the tool list being *shorter* would be a different experiment, and
+    one that could not be compared with the 571 runs already on disk.
+
+    The default is ``False`` so that every published batch's suite is byte-identical to what it
+    ran on, which the freeze manifest and the claims audit both depend on.
+    """
+
+    tools = list(WORKSPACE_SUITE.tools) + [make_function(tool) for tool in APT_TOOLS]
+    if mobile:
+        tools = tools + [make_function(tool) for tool in MOBILE_TOOLS]
     return TaskSuite[AptLabEnvironment](
         "apt_lab",
         AptLabEnvironment,
-        list(WORKSPACE_SUITE.tools) + [make_function(tool) for tool in APT_TOOLS],
+        tools,
         data_path=WORKSPACE_DATA_PATH,
     )
 
@@ -115,10 +129,10 @@ def seed_virtual_assets(env: AptLabEnvironment) -> AptLabEnvironment:
     return env
 
 
-def new_environment() -> AptLabEnvironment:
+def new_environment(*, mobile: bool = False) -> AptLabEnvironment:
     """A fresh, seeded, official-data-backed sandbox environment."""
 
-    suite = build_suite()
+    suite = build_suite(mobile=mobile)
     env = suite.load_and_inject_default_environment({})
     assert isinstance(env, AptLabEnvironment), type(env)
     return seed_virtual_assets(env)

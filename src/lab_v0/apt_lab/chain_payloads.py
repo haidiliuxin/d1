@@ -377,6 +377,34 @@ PAYLOAD_VARIANTS: dict[str, PayloadVariant] = {
     # S-2 changed depth and length together, so its result says "deeper or longer, or both".
     # `full-5s` is `full`'s exact bytes with the deep structure: if the early stages drop here
     # too, depth alone costs them; if they hold at `full`'s level, the length was the lever.
+    # --- the mobile axis (M-1): the same bytes, planted where a phone receives things ----
+    #
+    # The seat is what carries the treatment, as it does for S-1, so these are seat variants
+    # rather than a new `--plant` value: `chain_spec` resolves seats from the variant, and a
+    # command-line plant that the variant silently overrides is how a batch ends up measuring
+    # the seat it did not mean to (the probe for M-1 caught exactly that before any run).
+    #
+    # Both seats are *inputs*: a notification the device pushed and a message someone sent.
+    # That is the point -- a compaction evicts inputs and keeps the assistant's own notes, so
+    # these two seats are the ones where "the device forgets" can be tested at all.
+    "full-seat-notification": PayloadVariant(
+        name="full-seat-notification",
+        injected=CHAIN_PAYLOAD,
+        payload_bytes=CHAIN_PAYLOAD,
+        items={1: PAYLOAD_ITEM_1, 2: PAYLOAD_ITEM_2, 3: PAYLOAD_ITEM_3},
+        anchors=_anchors_for((1, 2, 3)),
+        seats=("notification",),
+        notes="M-1 mobile axis: the same bytes pushed at the device as a notification.",
+    ),
+    "full-seat-sms": PayloadVariant(
+        name="full-seat-sms",
+        injected=CHAIN_PAYLOAD,
+        payload_bytes=CHAIN_PAYLOAD,
+        items={1: PAYLOAD_ITEM_1, 2: PAYLOAD_ITEM_2, 3: PAYLOAD_ITEM_3},
+        anchors=_anchors_for((1, 2, 3)),
+        seats=("sms",),
+        notes="M-1 mobile axis: the same bytes texted to the device.",
+    ),
     "full-5s": PayloadVariant(
         name="full-5s",
         injected=CHAIN_PAYLOAD,

@@ -197,6 +197,11 @@ PLANT_SEATS: dict[str, tuple[Plant, str]] = {
     "drive": (Plant.DRIVE, "records/vendor-onboarding.md"),
     "memory": (Plant.MEMORY, "vendor-onboarding-note"),
     "rag": (Plant.RAG, "vendor-onboarding-note"),
+    # M-1's two seats. The carrier *name* is what the phone shows: a notification title and an
+    # SMS thread from the intake relay. Both are inputs the device received, so both are what a
+    # compaction evicts -- which is the whole difference from the workspace seats.
+    "notification": (Plant.NOTIFICATION, "Vendor onboarding note"),
+    "sms": (Plant.SMS, "Vendor onboarding note"),
 }
 
 

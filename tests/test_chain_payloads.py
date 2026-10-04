@@ -209,13 +209,34 @@ def test_every_variant_is_a_distinct_treatment():
         "full", "next-hop", "only-stage1", "full-5", "full-d2", "full-d4",
         "full-r2", "full-r3",
         "full-seat-drive", "full-seat-rag", "full-seat-memory",
+        "full-seat-notification", "full-seat-sms",
         "full-5s",
     }
     frozen = PAYLOAD_VARIANTS["full"].injected
     sharing = {name for name, v in PAYLOAD_VARIANTS.items() if v.injected == frozen}
     assert sharing == {"full", "full-r2", "full-r3",
                        "full-seat-drive", "full-seat-rag", "full-seat-memory",
+                       "full-seat-notification", "full-seat-sms",
                        "full-5s"}, sharing
+
+
+def test_the_mobile_seats_are_seat_variants_not_new_payloads():
+    """M-1 varies the carrier surface, so its variants must differ only in the seat.
+
+    The pre-registration promises one variable. A mobile variant that also reworded the payload
+    would make any difference between the arms unattributable -- the mistake S-2 made with depth
+    and length, which cost a whole batch to undo.
+    """
+
+    frozen = PAYLOAD_VARIANTS["full"]
+    for name, seat in (("full-seat-notification", "notification"), ("full-seat-sms", "sms")):
+        variant = PAYLOAD_VARIANTS[name]
+        assert variant.seats == (seat,), (name, variant.seats)
+        assert variant.injected == frozen.injected
+        assert variant.payload_bytes == frozen.payload_bytes
+        assert variant.items == frozen.items
+        assert variant.anchors == frozen.anchors
+        assert variant.deep is False
 
 
 def test_depth_is_declared_and_full_5s_holds_the_bytes_constant():
